@@ -1,0 +1,15 @@
+{
+  "meraki_api_key": "YOUR_MERAKI_API_KEY_HERE",
+  "organization_id": "YOUR_ORG_ID_HERE",
+  "aws_region": "us-west-2",
+  "key_pair_name": "your-ec2-keypair",
+  "instance_type": "c5.large",
+  "vpc_cidr": "10.0.0.0/16",
+  "subnet_cidr": "10.0.1.0/24",
+  "vmx_name": "Meraki-vMX-AWS-Prod",
+  "tags": {
+    "Environment": "Production",
+    "Owner": "NetworkTeam",
+    "Project": "SD-WAN"
+  }
+}
