@@ -1,6 +1,6 @@
 {
-  "meraki_api_key": "YOUR_MERAKI_API_KEY_HERE",
-  "organization_id": "YOUR_ORG_ID_HERE",
+  "meraki_api_key": "edfbb293da981d643af1255c420c79bbca91fb51",
+  "organization_id": "wh7Kwc",
   "aws_region": "us-west-2",
   "key_pair_name": "your-ec2-keypair",
   "instance_type": "c5.large",
