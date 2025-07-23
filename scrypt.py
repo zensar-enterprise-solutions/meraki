@@ -93,6 +93,9 @@ class MerakiVMXDeployer:
                     logger.info(f"Created network: {self.network_id}")
                 else:
                     logger.error(f"Failed to create network: {response.text}")
+                    logger.error("Likely causes: invalid organization ID, invalid API key, insufficient API permissions, or wrong API base URL.")
+                    logger.error("If you are using a Meraki 'test' or 'demo' organization, API write operations may not be allowed.")
+                    logger.error("Please verify your Meraki API key, organization ID, and that the API key has permissions to create networks.")
                     return None
             
             # Generate vMX authentication token
@@ -678,7 +681,7 @@ vMX Instance:
 - Private IP: {results['instance']['private_ip']}
 - AMI ID: {results['instance']['ami_id']}
 
-Dashboard URL: https://dashboard.meraki.com/o/{self.org_id}/manage/usage/list?network_id={results['network_id']}
+Dashboard URL: https://n856.meraki.com/o/{self.org_id}/manage/usage/list?network_id={results['network_id']}
 
 Next Steps:
 1. Wait for vMX to fully initialize (5-10 minutes)
@@ -741,3 +744,18 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+import requests
+
+headers = {'X-Cisco-Meraki-API-Key': 'edfbb293da981d643af1255c420c79bbca91fb51'}
+
+# List organizations
+orgs = requests.get('https://api.meraki.com/api/v1/organizations', headers=headers)
+print("Organizations:", orgs.json())
+
+# Use the correct organization ID from above
+org_id = 'wh7Kwc'  # Replace with a valid one from the output above
+
+# List networks in the organization
+networks = requests.get(f'https://api.meraki.com/api/v1/organizations/{org_id}/networks', headers=headers)
+print("Networks:", networks.json())
