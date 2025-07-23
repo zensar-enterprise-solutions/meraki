@@ -74,11 +74,15 @@ class MerakiVMXDeployer:
             # Create a new network if network_id is not provided
             if not self.network_id:
                 logger.info("Creating new Meraki network for vMX...")
+                # Add timestamp to network name to ensure uniqueness
+                timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+                network_name = f"{self.vmx_config['vmx_name']}-{timestamp}"
+                
                 network_data = {
-                    "name": self.vmx_config['vmx_name'],
+                    "name": network_name,
                     "productTypes": ["appliance"],
                     "tags": ["vmx", "aws", "automation"],
-                    "timeZone": "America/Los_Angeles"
+                    "timeZone": "Europe/London"
                 }
                 
                 response = requests.post(
@@ -91,6 +95,24 @@ class MerakiVMXDeployer:
                     network = response.json()
                     self.network_id = network['id']
                     logger.info(f"Created network: {self.network_id}")
+                    
+                    # Add delay to allow network to initialize
+                    logger.info("Waiting for network to initialize...")
+                    time.sleep(30)  # Wait 30 seconds
+                    
+                    # Verify network is configured for vMX
+                    network_info = requests.get(
+                        f"{self.meraki_base_url}/networks/{self.network_id}",
+                        headers=self.headers
+                    )
+                    if network_info.status_code == 200:
+                        network = network_info.json()
+                        if 'appliance' not in network['productTypes']:
+                            logger.error("Network is not configured for vMX/appliance")
+                            return None
+                    else:
+                        logger.error(f"Failed to retrieve network information: {network_info.text}")
+                        return None
                 else:
                     logger.error(f"Failed to create network: {response.text}")
                     logger.error("Likely causes: invalid organization ID, invalid API key, insufficient API permissions, or wrong API base URL.")

@@ -1,7 +1,5 @@
 {
-  "meraki_api_key": "d4c998d5be673745355bfe2e6d2db2b0b41505cd",
-  "organization_id": "wh7Kwc",
-  "network_id": "fBBQUcGBb",
+  "organization_id": "1666125",
   "aws_region": "eu-north-1",
   "key_pair_name": "meraki-key",
   "instance_type": "c5.large",
