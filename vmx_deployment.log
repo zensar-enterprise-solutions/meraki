@@ -1,0 +1,15 @@
+2025-07-23 13:16:09,015 - INFO - AWS clients initialized successfully
+2025-07-23 13:16:09,016 - INFO - Starting Meraki vMX deployment to AWS...
+2025-07-23 13:16:09,018 - INFO - Target region: us-west-2
+2025-07-23 13:16:09,020 - INFO - Instance type: c5.large
+2025-07-23 13:16:09,021 - INFO - vMX name: Meraki-vMX-AWS-Prod
+2025-07-23 13:16:09,022 - INFO - Generating vMX authentication token...
+2025-07-23 13:16:09,023 - INFO - Creating new Meraki network for vMX...
+2025-07-23 13:16:09,394 - ERROR - Failed to create network: {
+  "errors" : [
+    "No valid authentication method found"
+  ]
+}
+
+2025-07-23 13:16:09,402 - ERROR - Failed to generate authentication token
+2025-07-23 13:16:09,405 - ERROR - Deployment failed!

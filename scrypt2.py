@@ -158,8 +158,9 @@ class MerakiVMXDeployer:
                         'ResourceType': 'vpc',
                         'Tags': [
                             {'Key': 'Name', 'Value': f"vpc-{self.vmx_config['vmx_name']}"},
-                            {'Key': 'Purpose', 'Value': 'Meraki vMX'}
-                        ] + [{'Key': k, 'Value': v} for k, v in self.vmx_config['tags'].items()]
+                            {'Key': 'Purpose', 'Value': 'Meraki vMX'},
+                            **[{'Key': k, 'Value': v} for k, v in self.vmx_config['tags'].items()]
+                        ]
                     }
                 ]
             )
@@ -446,8 +447,9 @@ echo "Meraki vMX deployment completed at $(date)" >> /var/log/vmx_deployment.log
                             {'Key': 'Name', 'Value': self.vmx_config['vmx_name']},
                             {'Key': 'Type', 'Value': 'Meraki vMX'},
                             {'Key': 'NetworkId', 'Value': self.network_id},
-                            {'Key': 'DeploymentDate', 'Value': datetime.now().strftime('%Y-%m-%d')}
-                        ] + [{'Key': k, 'Value': v} for k, v in self.vmx_config['tags'].items()]
+                            {'Key': 'DeploymentDate', 'Value': datetime.now().strftime('%Y-%m-%d')},
+                            **[{'Key': k, 'Value': v} for k, v in self.vmx_config['tags'].items()]
+                        ]
                     }
                 ],
                 MetadataOptions={
