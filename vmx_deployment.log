@@ -13,3 +13,23 @@
 
 2025-07-23 13:16:09,402 - ERROR - Failed to generate authentication token
 2025-07-23 13:16:09,405 - ERROR - Deployment failed!
+2025-07-23 17:34:20,527 - INFO - AWS clients initialized successfully
+2025-07-23 17:34:20,533 - INFO - Starting Meraki vMX deployment to AWS...
+2025-07-23 17:34:20,534 - INFO - Target region: us-north-1
+2025-07-23 17:34:20,534 - INFO - Instance type: c5.large
+2025-07-23 17:34:20,535 - INFO - vMX name: Meraki-vMX-AWS-Prod
+2025-07-23 17:34:20,536 - INFO - Generating vMX authentication token...
+2025-07-23 17:34:20,536 - INFO - Creating new Meraki network for vMX...
+2025-07-23 17:34:20,992 - ERROR - Failed to create network: 
+2025-07-23 17:34:20,994 - ERROR - Failed to generate authentication token
+2025-07-23 17:34:20,994 - ERROR - Deployment failed!
+2025-07-23 17:46:10,474 - INFO - AWS clients initialized successfully
+2025-07-23 17:46:10,475 - INFO - Starting Meraki vMX deployment to AWS...
+2025-07-23 17:46:10,475 - INFO - Target region: us-north-1
+2025-07-23 17:46:10,475 - INFO - Instance type: c5.large
+2025-07-23 17:46:10,476 - INFO - vMX name: Meraki-vMX-AWS-Prod
+2025-07-23 17:46:10,476 - INFO - Generating vMX authentication token...
+2025-07-23 17:46:10,477 - INFO - Creating new Meraki network for vMX...
+2025-07-23 17:46:11,068 - ERROR - Failed to create network: 
+2025-07-23 17:46:11,069 - ERROR - Failed to generate authentication token
+2025-07-23 17:46:11,069 - ERROR - Deployment failed!

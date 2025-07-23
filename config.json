@@ -1,8 +1,8 @@
 {
   "meraki_api_key": "edfbb293da981d643af1255c420c79bbca91fb51",
   "organization_id": "wh7Kwc",
-  "aws_region": "us-west-2",
-  "key_pair_name": "your-ec2-keypair",
+  "aws_region": "eu-north-1",
+  "key_pair_name": "meraki-key",
   "instance_type": "c5.large",
   "vpc_cidr": "10.0.0.0/16",
   "subnet_cidr": "10.0.1.0/24",
