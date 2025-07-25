@@ -1,5 +1,5 @@
 {
-    "meraki_api_key": "0d2d6b4f87139249cbeeb37615623e5fd8e8470c",
+    "meraki_api_key": "${MERAKI_API_KEY}",  
     "organization_id": "1666125",
     "network_name": "Meraki-Network",
     "timezone": "Europe/London",

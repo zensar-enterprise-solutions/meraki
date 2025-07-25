@@ -1,9 +1,7 @@
 {
-    "meraki_api_key": "${MERAKI_API_KEY}", 
+    "meraki_api_key": "0d2d6b4f87139249cbeeb37615623e5fd8e8470c",
     "organization_id": "1666125",
     "network_name": "Meraki-Network",
-    "source_device": "cc:03:d9:02:3d:96",
-    "target_network": "Meraki-Network-test",
     "timezone": "Europe/London",
     "tags": ["managed", "automation"],
     "device_serials": [
@@ -12,5 +10,7 @@
     ],
     "wan_config": {
         "vlan": null  
-    }
+    },
+    "source_device": "cc:03:d9:02:3d:96",
+    "target_network": "Meraki-Network"
 }

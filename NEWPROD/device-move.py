@@ -87,18 +87,35 @@ class DeviceMover:
     def get_target_network_id(self):
         """Get target network ID"""
         try:
-            response = requests.get(
+            response = self.session.get(
                 f"{self.base_url}/organizations/{self.org_id}/networks",
                 headers=self.headers
             )
             
             if response.status_code == 200:
                 networks = response.json()
-                network = next((n for n in networks if n['name'] == self.target_network), None)
+                # Try exact match first
+                network = next(
+                    (n for n in networks if 
+                     n['name'].lower() == self.target_network.lower() or
+                     n['name'].lower().startswith('meraki-network')
+                    ), None
+                )
+                
                 if network:
+                    logger.info(f"Found matching network: {network['name']} (ID: {network['id']})")
+                    self.target_network = network['name']  # Update to actual name
                     return network['id']
-            logger.error(f"Target network '{self.target_network}' not found")
+                
+                logger.error(f"Network matching '{self.target_network}' not found")
+                logger.info("Available networks:")
+                for n in networks:
+                    logger.info(f"- {n['name']}")
+                return None
+            
+            logger.error(f"Failed to get networks: {response.text}")
             return None
+            
         except Exception as e:
             logger.error(f"Error getting networks: {e}")
             return None
@@ -120,7 +137,7 @@ class DeviceMover:
                 f"{self.base_url}/networks/{target_network_id}/devices/claim",
                 headers=self.headers,
                 json={"serials": [device['serial']]}
-            )
+            )     
             
             if response.status_code in [200, 201]:
                 logger.info(f"Successfully moved device to network {self.target_network}")

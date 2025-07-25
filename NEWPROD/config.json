@@ -1,0 +1,15 @@
+{
+    "meraki_api_key": "${MERAKI_API_KEY}",    
+    "organization_id": "1676218",
+    "network_name": "AWS-EU-WEST-1-SCVPN-02",
+    "source_device": "cc:03:d9:02:60:0c",
+    "target_network": "AWS-EU-WEST-1-SCVPN-02",
+    "timezone": "Europe/London",
+    "tags": ["managed", "automation"],
+    "device_serials": [
+        "Q2CZ-UW4B-PKQU"
+    ],
+    "wan_config": {
+        "vlan": null  
+    }
+}

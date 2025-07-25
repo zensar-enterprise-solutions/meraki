@@ -303,32 +303,11 @@ class MerakiNetworkManager:
         logger.info("Inventory fetch complete")
         return available_devices  # Will return empty list if no devices found
 
-    def bind_template(self, template_name='1156'):
-        """Bind network to configuration template by template name"""
-        logger.info(f"Looking up template ID for template name '{template_name}'...")
+    def bind_template(self, template_id='L_3859584880656523057'):
+        """Bind network to configuration template"""
+        logger.info(f"Binding network to template {template_id}...")
+        
         try:
-            # Get all config templates for the organization
-            response = self.session.get(
-                f"{self.meraki_base_url}/organizations/{self.org_id}/configTemplates",
-                headers=self.headers
-            )
-            if response.status_code != 200:
-                logger.error(f"Failed to fetch config templates: {response.text}")
-                return False
-
-            templates = response.json()
-            template_id = None
-            for template in templates:
-                if template.get('name') == template_name:
-                    template_id = template.get('id')
-                    break
-
-            if not template_id:
-                logger.error(f"Template with name '{template_name}' not found.")
-                return False
-
-            logger.info(f"Binding network to template {template_id} ('{template_name}')...")
-
             response = self.session.post(
                 f"{self.meraki_base_url}/networks/{self.network_id}/bind",
                 headers=self.headers,
@@ -337,7 +316,7 @@ class MerakiNetworkManager:
                     "autoBind": False  # Disable auto-bind for switches
                 }
             )
-
+            
             if response.status_code == 200:
                 logger.info(f"Successfully bound network to template {template_id}")
                 logger.warning("Note: Switches must be manually bound in dashboard due to multiple switch profiles")
@@ -346,10 +325,11 @@ class MerakiNetworkManager:
             else:
                 logger.error(f"Failed to bind template: {response.text}")
                 return False
-
+                
         except requests.exceptions.RequestException as e:
             logger.error(f"Error binding template: {e}")
             return False
+
     def deploy(self):
         """Main deployment method"""
         logger.info("Starting Meraki network deployment...")

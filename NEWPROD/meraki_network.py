@@ -303,7 +303,7 @@ class MerakiNetworkManager:
         logger.info("Inventory fetch complete")
         return available_devices  # Will return empty list if no devices found
 
-    def bind_template(self, template_name='1156'):
+    def bind_template(self, template_name='vMX-SCVPN-01'):
         """Bind network to configuration template by template name"""
         logger.info(f"Looking up template ID for template name '{template_name}'...")
         try:
