@@ -1,0 +1,19 @@
+{
+  "meraki_api_key": "0d2d6b4f87139249cbeeb37615623e5fd8e8470c",
+  "organization_id": "1666125",
+  "aws_region": "eu-north-1",
+  "key_pair_name": "meraki-key",
+  "instance_type": "c5.large",
+  "vpc_cidr": "10.0.0.0/16",
+  "subnet_cidr": "10.0.1.0/24",
+  "vmx_name": "Meraki-vMX-AWS-Prod",
+  "tags": {
+    "Environment": "Production",
+    "Owner": "NetworkTeam",
+    "Project": "SD-WAN"
+  },
+  "device_serials": [
+    "Q2HP-XXXX-XXXX",
+    "Q2HP-YYYY-YYYY"
+  ]
+}

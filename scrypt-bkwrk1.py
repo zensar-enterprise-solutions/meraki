@@ -628,50 +628,6 @@ echo "Meraki vMX deployment completed at $(date)" >> /var/log/vmx_deployment.log
         except ClientError as e:
             logger.error(f"Error during cleanup: {e}")
 
-    def add_devices_to_network(self, serial_numbers):
-        """Add Meraki devices to the network"""
-        logger.info(f"Adding devices to network {self.network_id}...")
-        
-        try:
-            # Claim devices to the network
-            response = requests.post(
-                f"{self.meraki_base_url}/organizations/{self.org_id}/claim",
-                headers=self.headers,
-                json={
-                    "serials": serial_numbers,
-                    "networkId": self.network_id
-                }
-            )
-            
-            if response.status_code == 200:
-                logger.info(f"Successfully claimed devices: {serial_numbers}")
-                
-                # Verify devices are added
-                devices_response = requests.get(
-                    f"{self.meraki_base_url}/networks/{self.network_id}/devices",
-                    headers=self.headers
-                )
-                
-                if devices_response.status_code == 200:
-                    devices = devices_response.json()
-                    claimed_devices = [d for d in devices if d['serial'] in serial_numbers]
-                    
-                    logger.info(f"Found {len(claimed_devices)} devices in network:")
-                    for device in claimed_devices:
-                        logger.info(f"- {device['model']} ({device['serial']}): {device.get('status', 'Unknown')}")
-                    
-                    return claimed_devices
-                else:
-                    logger.error(f"Failed to verify devices: {devices_response.text}")
-                    return None
-            else:
-                logger.error(f"Failed to claim devices: {response.text}")
-                return None
-                
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error adding devices: {e}")
-            return None
-
     def deploy(self):
         """Main deployment method"""
         logger.info("Starting Meraki vMX deployment to AWS...")
@@ -713,12 +669,6 @@ echo "Meraki vMX deployment completed at $(date)" >> /var/log/vmx_deployment.log
             if vmx_device:
                 deployment_results['device'] = vmx_device
             
-            # Add devices to network (if specified in config)
-            if 'device_serials' in self.config:
-                claimed_devices = self.add_devices_to_network(self.config['device_serials'])
-                if claimed_devices:
-                    deployment_results['devices'] = claimed_devices
-        
             # Generate deployment summary
             self.generate_deployment_summary(deployment_results)
             

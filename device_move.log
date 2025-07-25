@@ -1,0 +1,25 @@
+2025-07-25 14:17:24,833 - INFO - Found device: Q2CZ-4W7W-QDS4 (MAC: cc:03:d9:02:3d:96)
+2025-07-25 14:17:25,474 - ERROR - Target network 'Meraki-Network-test' not found
+2025-07-25 14:18:22,476 - INFO - Found device: Q2CZ-4W7W-QDS4 (MAC: cc:03:d9:02:3d:96)
+2025-07-25 14:18:22,843 - ERROR - Target network 'Meraki-Network-test' not found
+2025-07-25 14:19:12,606 - INFO - Found device: Q2CZ-4W7W-QDS4 (MAC: cc:03:d9:02:3d:96)
+2025-07-25 14:19:13,019 - ERROR - Target network 'Meraki-Network-test' not found
+2025-07-25 14:24:23,287 - INFO - Found device: Q2CZ-4W7W-QDS4 (MAC: cc:03:d9:02:3d:96)
+2025-07-25 14:24:23,697 - ERROR - Target network 'Meraki-Network-test' not found
+2025-07-25 15:18:04,735 - INFO - Found device: Q2CZ-4W7W-QDS4 (MAC: cc:03:d9:02:3d:96)
+2025-07-25 15:18:05,209 - ERROR - Target network 'Meraki-Network-test' not found
+2025-07-25 15:19:36,423 - INFO - Found device: Q2CZ-4W7W-QDS4 (MAC: cc:03:d9:02:3d:96)
+2025-07-25 15:19:36,957 - ERROR - Target network 'Meraki-Network-test' not found
+2025-07-25 15:21:26,224 - INFO - Found device: Q2CZ-4W7W-QDS4 (MAC: cc:03:d9:02:3d:96)
+2025-07-25 15:21:26,719 - ERROR - Target network 'Meraki-Network-test' not found
+2025-07-25 15:21:35,745 - INFO - Found device: Q2CZ-4W7W-QDS4 (MAC: cc:03:d9:02:3d:96)
+2025-07-25 15:21:36,461 - ERROR - Target network 'Meraki-Network-test' not found
+2025-07-25 15:31:17,760 - INFO - Found device: Q2CZ-4W7W-QDS4 (MAC: cc:03:d9:02:3d:96)
+2025-07-25 15:31:17,948 - INFO - Found matching network: Meraki POC Environment (ID: L_3859584880656520442)
+2025-07-25 15:31:21,909 - INFO - Successfully moved device to network Meraki POC Environment
+2025-07-25 15:31:21,909 - INFO - Device move completed successfully!
+2025-07-25 15:32:09,708 - INFO - Found device: Q2CZ-4W7W-QDS4 (MAC: cc:03:d9:02:3d:96)
+2025-07-25 15:32:10,009 - INFO - Found matching network: Meraki-Network (ID: L_3859584880656523080)
+2025-07-25 15:32:10,010 - INFO - Removing device from current network L_3859584880656520442
+2025-07-25 15:32:20,069 - INFO - Successfully moved device to network Meraki-Network
+2025-07-25 15:32:20,069 - INFO - Device move completed successfully!
