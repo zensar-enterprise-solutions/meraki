@@ -10,3 +10,7 @@
 2025-07-25 19:23:11,625 - INFO - Found matching network: AWS-EU-WEST-1-SCVPN-02 (ID: L_3859584880656523091)
 2025-07-25 19:23:14,940 - INFO - Successfully moved device to network AWS-EU-WEST-1-SCVPN-02
 2025-07-25 19:23:14,941 - INFO - Device move completed successfully!
+2025-07-25 19:47:14,767 - INFO - Found device: Q2CZ-4W7W-QDS4 (MAC: cc:03:d9:02:3d:96)
+2025-07-25 19:47:15,190 - INFO - Found matching network: AWS-EU-WEST-1-SCVPN-02 (ID: L_3859584880656523093)
+2025-07-25 19:47:18,643 - INFO - Successfully moved device to network AWS-EU-WEST-1-SCVPN-02
+2025-07-25 19:47:18,644 - INFO - Device move completed successfully!
