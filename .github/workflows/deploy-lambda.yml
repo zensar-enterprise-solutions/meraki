@@ -68,7 +68,7 @@ jobs:
             --layer-name meraki-dependencies \
             --description "Dependencies for Meraki automation" \
             --zip-file fileb://lambda-layer.zip \
-            --compatible-runtimes python3.9 \
+            --compatible-runtimes python3.13 \
             --query 'LayerVersionArn' \
             --output text)
           echo "::set-output name=layer_arn::$LAYER_ARN"
@@ -135,7 +135,7 @@ jobs:
           fi
           aws lambda create-function \
             --function-name "$FUNCTION_NAME" \
-            --runtime python3.9 \
+            --runtime python3.13 \
             --handler lambda_handler.lambda_handler \
             --role "$LAMBDA_ROLE" \
             --timeout 300 \
