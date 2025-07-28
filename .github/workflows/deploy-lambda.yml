@@ -56,17 +56,29 @@ jobs:
             echo "::set-output name=exists::true"
           fi
           
+      - name: Validate Lambda role ARN
+        id: validate_role
+        run: |
+          if [ -z "${{ secrets.LAMBDA_ROLE_ARN }}" ]; then
+            echo "::error::LAMBDA_ROLE_ARN secret is not set"
+            exit 1
+          fi
+          echo "::set-output name=role_arn::${{ secrets.LAMBDA_ROLE_ARN }}"
+          
       - name: Create Lambda function
         if: steps.check_function.outputs.exists == 'false'
+        env:
+          LAMBDA_ROLE: ${{ steps.validate_role.outputs.role_arn }}
         run: |
+          echo "Using IAM Role: $LAMBDA_ROLE"
           aws lambda create-function \
             --function-name meraki-network-automation \
             --runtime python3.9 \
             --handler lambda_handler.lambda_handler \
-            --role ${{ secrets.LAMBDA_ROLE_ARN }} \
+            --role "$LAMBDA_ROLE" \
             --timeout 300 \
             --memory-size 256 \
-            --layers $LAYER_VERSION \
+            --layers "$LAYER_VERSION" \
             --environment "Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }}}" \
             --zip-file fileb://lambda.zip
             
