@@ -1,6 +1,30 @@
 name: Deploy Lambda Function
 
 on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+        - dev
+        - prod
+      function_name:
+        description: 'Lambda function name'
+        required: true
+        default: 'meraki-network-automation'
+      memory:
+        description: 'Memory size (MB)'
+        required: true
+        default: '256'
+        type: choice
+        options:
+          - '128'
+          - '256'
+          - '512'
+          - '1024'
   push:
     branches: [ main ]
   pull_request:
@@ -69,15 +93,17 @@ jobs:
         if: steps.check_function.outputs.exists == 'false'
         env:
           LAMBDA_ROLE: ${{ steps.validate_role.outputs.role_arn }}
+          FUNCTION_NAME: ${{ github.event.inputs.function_name || 'meraki-network-automation' }}
+          MEMORY_SIZE: ${{ github.event.inputs.memory || '256' }}
         run: |
           echo "Using IAM Role: $LAMBDA_ROLE"
           aws lambda create-function \
-            --function-name meraki-network-automation \
+            --function-name "$FUNCTION_NAME" \
             --runtime python3.9 \
             --handler lambda_handler.lambda_handler \
             --role "$LAMBDA_ROLE" \
             --timeout 300 \
-            --memory-size 256 \
+            --memory-size "$MEMORY_SIZE" \
             --layers "$LAYER_VERSION" \
             --environment "Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }}}" \
             --zip-file fileb://lambda.zip
