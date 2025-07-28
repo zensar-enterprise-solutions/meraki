@@ -8,13 +8,13 @@ import sys
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-# Configure logging for both local and Lambda environments
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
+# Configure logging for Lambda compatibility
 logger = logging.getLogger(__name__)
+if not logger.handlers:
+    logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logger.addHandler(handler)
 
 class DeviceMover:
     def __init__(self, config):

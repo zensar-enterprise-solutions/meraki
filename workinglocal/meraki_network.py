@@ -17,13 +17,11 @@ from datetime import datetime
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-# Configure logging with debug option
+# Configure logging for Lambda compatibility
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger(__name__)
 
