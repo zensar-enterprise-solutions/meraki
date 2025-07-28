@@ -150,11 +150,22 @@ jobs:
           LAYER_ARN: ${{ steps.layer_version.outputs.layer_arn }}
           FUNCTION_NAME: ${{ github.event.inputs.function_name || 'meraki-network-automation' }}
         run: |
+          # Update function code
           aws lambda update-function-code \
             --function-name "$FUNCTION_NAME" \
             --zip-file fileb://lambda.zip
           
+          # Wait for function update to complete
+          echo "Waiting for function code update to complete..."
+          aws lambda wait function-updated --function-name "$FUNCTION_NAME"
+          
+          # Update function configuration
+          echo "Updating function configuration..."
           aws lambda update-function-configuration \
             --function-name "$FUNCTION_NAME" \
             --layers "$LAYER_ARN" \
             --environment "Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }}}"
+          
+          # Final wait for configuration update
+          echo "Waiting for configuration update to complete..."
+          aws lambda wait function-updated --function-name "$FUNCTION_NAME"
