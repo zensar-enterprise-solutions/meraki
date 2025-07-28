@@ -87,15 +87,24 @@ jobs:
         run: |
           ROLE_ARN="${{ secrets.LAMBDA_ROLE_ARN }}"
           if [ -z "$ROLE_ARN" ]; then
-            echo "::error::LAMBDA_ROLE_ARN secret is not set"
+            echo "::error::LAMBDA_ROLE_ARN secret is not set. Please add it in GitHub repository settings."
+            echo "::error::Example format: arn:aws:iam::123456789012:role/lambda-meraki-role"
             exit 1
           fi
-          # Validate ARN format
-          if [[ ! "$ROLE_ARN" =~ ^arn:aws:iam::[0-9]{12}:role/.+ ]]; then
-            echo "::error::Invalid IAM role ARN format. Expected: arn:aws:iam::<account-id>:role/<role-name>"
+          
+          # Extract account ID and role name for validation
+          ACCOUNT_ID=$(echo $ROLE_ARN | sed -n 's/^arn:aws:iam::\([0-9]\{12\}\):role\/.*$/\1/p')
+          ROLE_NAME=$(echo $ROLE_ARN | sed -n 's/^arn:aws:iam::[0-9]\{12\}:role\/\(.*\)$/\1/p')
+          
+          if [ -z "$ACCOUNT_ID" ] || [ -z "$ROLE_NAME" ]; then
+            echo "::error::Invalid IAM role ARN format"
+            echo "::error::Expected format: arn:aws:iam::<12-digit-account-id>:role/<role-name>"
+            echo "::error::Example: arn:aws:iam::123456789012:role/lambda-meraki-role"
             exit 1
           fi
+          
           echo "role_arn=$ROLE_ARN" >> $GITHUB_OUTPUT
+          echo "Successfully validated role ARN format"
           
       - name: Create Lambda function
         if: steps.check_function.outputs.exists == 'false'
