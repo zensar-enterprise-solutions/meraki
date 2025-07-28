@@ -20,7 +20,15 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          mkdir -p package
+          pip install -r requirements.txt -t package/
+          
+      - name: Package Lambda dependencies
+        run: |
+          cd package
+          zip -r ../lambda-layer.zip .
+          cd ..
+          zip -r lambda.zip . -x "package/*" "*.git*"
           
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
@@ -29,11 +37,15 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-north-1
           
-      - name: Package Lambda function
+      - name: Update Lambda Layer
         run: |
-          zip -r lambda.zip .
-          
-      - name: Deploy to AWS Lambda
+          aws lambda publish-layer-version \
+            --layer-name meraki-dependencies \
+            --description "Dependencies for Meraki automation" \
+            --zip-file fileb://lambda-layer.zip \
+            --compatible-runtimes python3.9
+            
+      - name: Deploy Lambda function
         run: |
           aws lambda update-function-code \
             --function-name meraki-network-automation \
