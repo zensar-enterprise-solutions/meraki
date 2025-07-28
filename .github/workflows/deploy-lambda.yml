@@ -62,15 +62,17 @@ jobs:
           aws-region: eu-north-1
           
       - name: Update Lambda Layer
+        id: layer_version
         run: |
-          LAYER_VERSION=$(aws lambda publish-layer-version \
+          LAYER_ARN=$(aws lambda publish-layer-version \
             --layer-name meraki-dependencies \
             --description "Dependencies for Meraki automation" \
             --zip-file fileb://lambda-layer.zip \
             --compatible-runtimes python3.9 \
             --query 'LayerVersionArn' \
             --output text)
-            
+          echo "::set-output name=layer_arn::$LAYER_ARN"
+
       - name: Check if Lambda function exists
         id: check_function
         run: |
@@ -95,8 +97,10 @@ jobs:
           LAMBDA_ROLE: ${{ steps.validate_role.outputs.role_arn }}
           FUNCTION_NAME: ${{ github.event.inputs.function_name || 'meraki-network-automation' }}
           MEMORY_SIZE: ${{ github.event.inputs.memory || '256' }}
+          LAYER_ARN: ${{ steps.layer_version.outputs.layer_arn }}
         run: |
           echo "Using IAM Role: $LAMBDA_ROLE"
+          echo "Using Layer ARN: $LAYER_ARN"
           aws lambda create-function \
             --function-name "$FUNCTION_NAME" \
             --runtime python3.9 \
@@ -104,18 +108,21 @@ jobs:
             --role "$LAMBDA_ROLE" \
             --timeout 300 \
             --memory-size "$MEMORY_SIZE" \
-            --layers "$LAYER_VERSION" \
+            --layers "$LAYER_ARN" \
             --environment "Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }}}" \
             --zip-file fileb://lambda.zip
-            
+
       - name: Update Lambda function
         if: steps.check_function.outputs.exists == 'true'
+        env:
+          LAYER_ARN: ${{ steps.layer_version.outputs.layer_arn }}
+          FUNCTION_NAME: ${{ github.event.inputs.function_name || 'meraki-network-automation' }}
         run: |
           aws lambda update-function-code \
-            --function-name meraki-network-automation \
+            --function-name "$FUNCTION_NAME" \
             --zip-file fileb://lambda.zip
           
           aws lambda update-function-configuration \
-            --function-name meraki-network-automation \
-            --layers $LAYER_VERSION \
+            --function-name "$FUNCTION_NAME" \
+            --layers "$LAYER_ARN" \
             --environment "Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }}}"
