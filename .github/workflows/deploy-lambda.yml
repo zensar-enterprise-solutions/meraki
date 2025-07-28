@@ -39,14 +39,45 @@ jobs:
           
       - name: Update Lambda Layer
         run: |
-          aws lambda publish-layer-version \
+          LAYER_VERSION=$(aws lambda publish-layer-version \
             --layer-name meraki-dependencies \
             --description "Dependencies for Meraki automation" \
             --zip-file fileb://lambda-layer.zip \
-            --compatible-runtimes python3.9
+            --compatible-runtimes python3.9 \
+            --query 'LayerVersionArn' \
+            --output text)
             
-      - name: Deploy Lambda function
+      - name: Check if Lambda function exists
+        id: check_function
+        run: |
+          if ! aws lambda get-function --function-name meraki-network-automation &> /dev/null; then
+            echo "::set-output name=exists::false"
+          else
+            echo "::set-output name=exists::true"
+          fi
+          
+      - name: Create Lambda function
+        if: steps.check_function.outputs.exists == 'false'
+        run: |
+          aws lambda create-function \
+            --function-name meraki-network-automation \
+            --runtime python3.9 \
+            --handler lambda_handler.lambda_handler \
+            --role ${{ secrets.LAMBDA_ROLE_ARN }} \
+            --timeout 300 \
+            --memory-size 256 \
+            --layers $LAYER_VERSION \
+            --environment "Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }}}" \
+            --zip-file fileb://lambda.zip
+            
+      - name: Update Lambda function
+        if: steps.check_function.outputs.exists == 'true'
         run: |
           aws lambda update-function-code \
             --function-name meraki-network-automation \
             --zip-file fileb://lambda.zip
+          
+          aws lambda update-function-configuration \
+            --function-name meraki-network-automation \
+            --layers $LAYER_VERSION \
+            --environment "Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }}}"
