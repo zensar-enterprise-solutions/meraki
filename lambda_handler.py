@@ -1,8 +1,19 @@
 import json
 import os
 import logging
-from workinglocal.meraki_network import MerakiNetworkManager
-from workinglocal.device_move import DeviceMover
+import sys
+
+# Add package directory to path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Import required modules
+try:
+    import requests
+    from workinglocal.meraki_network import MerakiNetworkManager
+    from workinglocal.device_move import DeviceMover
+except ImportError as e:
+    print(f"Error importing dependencies: {str(e)}")
+    raise
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

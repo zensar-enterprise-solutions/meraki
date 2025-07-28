@@ -49,11 +49,21 @@ jobs:
           
       - name: Package Lambda dependencies
         run: |
+          # Install dependencies to package directory
+          mkdir -p package
+          pip install -r requirements.txt -t package/
+          cp -r workinglocal package/
+          cp lambda_handler.py package/
+          
+          # Create layer package
           cd package
           zip -r ../lambda-layer.zip .
           cd ..
-          zip -r lambda.zip . -x "package/*" "*.git*"
           
+          # Create function package
+          zip -j lambda.zip package/lambda_handler.py
+          zip -r lambda.zip workinglocal/
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
