@@ -9,8 +9,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # Import required modules
 try:
     import requests
-    from workinglocal.meraki_network import MerakiNetworkManager
-    from workinglocal.device_move import DeviceMover
+    from workinglocal.deploy_and_move import main as deploy_and_move_main
 except ImportError as e:
     print(f"Error importing dependencies: {str(e)}")
     raise
@@ -50,40 +49,41 @@ def lambda_handler(event, context):
                 'body': json.dumps({'error': 'network_name is required and must be a string'})
             }
 
-        # Step 1: Create network
-        manager = MerakiNetworkManager(config)
-        network_result = manager.deploy()
+        # Call deploy_and_move main function
+        result = deploy_and_move_main(config)
         
-        if not network_result:
+        if result:
+            return {
+                'statusCode': 200,
+                'body': json.dumps({
+                    'message': 'Deployment successful',
+                    'result': result
+                })
+            }
+        else:
             return {
                 'statusCode': 500,
-                'body': json.dumps({'error': 'Network creation failed'})
+                'body': json.dumps({'error': 'Deployment failed'})
             }
-
-        # Step 2: Move device if specified
-        if body.get('move_device'):
-            mover = DeviceMover(config)
-            device = mover.get_device_details()
-            if device:
-                target_id = mover.get_target_network_id()
-                if target_id:
-                    move_result = mover.move_device(device, target_id)
-                    if not move_result:
-                        return {
-                            'statusCode': 500,
-                            'body': json.dumps({'error': 'Device move failed'})
-                        }
-
-        return {
-            'statusCode': 200,
-            'body': json.dumps({
-                'message': 'Deployment successful',
-                'result': network_result
-            })
-        }
 
     except FileNotFoundError:
         logger.error("Configuration file not found at workinglocal/config.json")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Configuration file not found'})
+        }
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in configuration file: {str(e)}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Invalid configuration file format'})
+        }
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': str(e)})
+        }
         return {
             'statusCode': 500,
             'body': json.dumps({'error': 'Configuration file not found'})
