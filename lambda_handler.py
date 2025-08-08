@@ -36,7 +36,7 @@ logging.FileHandler = lambda_file_handler
 # Import required modules after logging configuration
 try:
     import requests
-    from workinglocal.deploy_and_move import main as deploy_and_move_main
+    from workinglocal.meraki_network import MerakiNetworkManager
 except ImportError as e:
     print(f"Error importing dependencies: {str(e)}")
     raise
@@ -76,8 +76,9 @@ def lambda_handler(event, context):
                 'body': json.dumps({'error': 'network_name is required and must be a string'})
             }
 
-        # Call deploy_and_move main function with config parameter
-        result = deploy_and_move_main(config)
+        # Create network manager and deploy
+        manager = MerakiNetworkManager(config)
+        result = manager.deploy()
         
         if result:
             return {
@@ -89,10 +90,8 @@ def lambda_handler(event, context):
             }
         else:
             return {
-                'statusCode': 200,
-                'body': json.dumps({
-                    'message': 'Deployment completed'
-                })
+                'statusCode': 500,
+                'body': json.dumps({'error': 'Deployment failed'})
             }
 
     except FileNotFoundError:
@@ -112,6 +111,7 @@ def lambda_handler(event, context):
         return {
             'statusCode': 500,
             'body': json.dumps({'error': str(e)})
+        }
         }
         return {
             'statusCode': 500,
