@@ -347,6 +347,14 @@ class MerakiNetworkManager:
         except requests.exceptions.RequestException as e:
             logger.error(f"Error binding template: {e}")
             return False
+    def add_devices_to_network(self, serial_numbers):
+        """Add devices to network - wrapper for add_devices method"""
+        if not serial_numbers:
+            logger.warning("No device serials provided")
+            return None
+        
+        return self.add_devices(serial_numbers)
+
     def deploy(self):
         """Main deployment method"""
         logger.info("Starting Meraki network deployment...")
