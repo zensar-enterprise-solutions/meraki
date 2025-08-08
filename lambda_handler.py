@@ -6,6 +6,9 @@ import sys
 # Add package directory to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+# Set environment variable to indicate Lambda environment
+os.environ['AWS_LAMBDA_FUNCTION_NAME'] = os.environ.get('AWS_LAMBDA_FUNCTION_NAME', 'lambda')
+
 # Configure logging for Lambda environment (before importing workinglocal modules)
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -21,6 +24,15 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
+# Monkey patch FileHandler to prevent file creation in Lambda
+original_file_handler = logging.FileHandler
+
+def lambda_file_handler(*args, **kwargs):
+    # In Lambda, redirect file logging to console
+    return logging.StreamHandler()
+
+logging.FileHandler = lambda_file_handler
+
 # Import required modules after logging configuration
 try:
     import requests
@@ -28,6 +40,9 @@ try:
 except ImportError as e:
     print(f"Error importing dependencies: {str(e)}")
     raise
+finally:
+    # Restore original FileHandler
+    logging.FileHandler = original_file_handler
 
 def lambda_handler(event, context):
     try:
