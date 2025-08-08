@@ -6,16 +6,28 @@ import sys
 # Add package directory to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Import required modules
+# Configure logging for Lambda environment (before importing workinglocal modules)
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# Clear any existing handlers to avoid file logging issues
+for handler in logger.handlers[:]:
+    logger.removeHandler(handler)
+
+# Add only console handler for Lambda
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+
+# Import required modules after logging configuration
 try:
     import requests
     from workinglocal.deploy_and_move import main as deploy_and_move_main
 except ImportError as e:
     print(f"Error importing dependencies: {str(e)}")
     raise
-
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 
 def lambda_handler(event, context):
     try:
@@ -84,18 +96,6 @@ def lambda_handler(event, context):
             'statusCode': 500,
             'body': json.dumps({'error': str(e)})
         }
-        return {
-            'statusCode': 500,
-            'body': json.dumps({'error': 'Configuration file not found'})
-        }
-    except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON in configuration file: {str(e)}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps({'error': 'Invalid configuration file format'})
-        }
-    except Exception as e:
-        logger.error(f"Error: {str(e)}")
         return {
             'statusCode': 500,
             'body': json.dumps({'error': str(e)})
