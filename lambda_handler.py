@@ -37,6 +37,7 @@ logging.FileHandler = lambda_file_handler
 try:
     import requests
     from workinglocal.meraki_network import MerakiNetworkManager
+    from workinglocal.device_move import DeviceMover
 except ImportError as e:
     print(f"Error importing dependencies: {str(e)}")
     raise
@@ -81,17 +82,38 @@ def lambda_handler(event, context):
         result = manager.deploy()
         
         if result:
+            deployment_result = {'network': result}
+            
+            # Step 2: Move device if configured
+            if config.get('source_device') and config.get('target_network'):
+                logger.info("Starting device move process...")
+                try:
+                    mover = DeviceMover(config)
+                    device = mover.get_device_details()
+                    if device:
+                        target_id = mover.get_target_network_id()
+                        if target_id:
+                            move_result = mover.move_device(device, target_id)
+                            if move_result:
+                                deployment_result['device_move'] = move_result
+                                logger.info("Device move completed successfully")
+                            else:
+                                logger.warning("Device move failed, but network creation was successful")
+                except Exception as e:
+                    logger.error(f"Device move failed: {str(e)}")
+                    logger.warning("Network creation was successful, but device move failed")
+            
             return {
                 'statusCode': 200,
                 'body': json.dumps({
                     'message': 'Deployment successful',
-                    'result': str(result)
+                    'result': str(deployment_result)
                 })
             }
         else:
             return {
                 'statusCode': 500,
-                'body': json.dumps({'error': 'Deployment failed'})
+                'body': json.dumps({'error': 'Network deployment failed'})
             }
 
     except FileNotFoundError:
