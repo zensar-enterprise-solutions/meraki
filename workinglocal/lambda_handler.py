@@ -23,10 +23,18 @@ def lambda_handler(event, context):
         # Parse input event
         body = json.loads(event.get('body', '{}'))
         
+        # Validate required fields
+        network_name = body.get('network_name')
+        if not network_name or not isinstance(network_name, str):
+            return {
+                'statusCode': 400,
+                'body': json.dumps({'error': 'network_name is required and must be a string'})
+            }
+        
         config = {
             "meraki_api_key": os.environ['MERAKI_API_KEY'],
             "organization_id": os.environ['ORGANIZATION_ID'],
-            "network_name": body.get('network_name'),
+            "network_name": str(network_name),  # Ensure it's a string
             "source_device": body.get('source_device'),
             "target_network": body.get('target_network'),
             "timezone": "Europe/London",
