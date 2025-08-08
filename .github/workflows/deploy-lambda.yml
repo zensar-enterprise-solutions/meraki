@@ -25,6 +25,14 @@ on:
           - '256'
           - '512'
           - '1024'
+      enable_vpc:
+        description: 'Enable VPC for static IP'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
   push:
     branches: [ main ]
   pull_request:
@@ -136,29 +144,57 @@ jobs:
           FUNCTION_NAME: ${{ github.event.inputs.function_name || 'meraki-network-automation' }}
           MEMORY_SIZE: ${{ github.event.inputs.memory || '256' }}
           LAYER_ARN: ${{ steps.layer_version.outputs.layer_arn }}
+          ENABLE_VPC: ${{ github.event.inputs.enable_vpc || 'true' }}
+          SUBNET_ID: ${{ secrets.VPC_SUBNET_ID }}
+          SECURITY_GROUP_ID: ${{ secrets.LAMBDA_SECURITY_GROUP_ID }}
         run: |
           echo "Using IAM Role: $LAMBDA_ROLE"
           echo "Using Layer ARN: $LAYER_ARN"
-          if [ -z "$LAMBDA_ROLE" ]; then
-            echo "::error::Lambda role ARN is empty"
-            exit 1
+          
+          if [ "$ENABLE_VPC" = "true" ]; then
+            if [ -z "$SUBNET_ID" ] || [ -z "$SECURITY_GROUP_ID" ]; then
+              echo "::error::VPC_SUBNET_ID and LAMBDA_SECURITY_GROUP_ID secrets are required for VPC deployment"
+              exit 1
+            fi
+            
+            echo "Creating Lambda function with VPC configuration..."
+            echo "Subnet ID: $SUBNET_ID"
+            echo "Security Group ID: $SECURITY_GROUP_ID"
+            echo "Static IP: ${{ secrets.STATIC_IP_ADDRESS }}"
+            
+            aws lambda create-function \
+              --function-name "$FUNCTION_NAME" \
+              --runtime python3.9 \
+              --handler lambda_handler.lambda_handler \
+              --role "$LAMBDA_ROLE" \
+              --timeout 300 \
+              --memory-size "$MEMORY_SIZE" \
+              --layers "$LAYER_ARN" \
+              --vpc-config "SubnetIds=[$SUBNET_ID],SecurityGroupIds=[$SECURITY_GROUP_ID]" \
+              --environment "Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }},STATIC_IP=${{ secrets.STATIC_IP_ADDRESS }}}" \
+              --zip-file fileb://lambda.zip
+          else
+            echo "Creating Lambda function without VPC..."
+            aws lambda create-function \
+              --function-name "$FUNCTION_NAME" \
+              --runtime python3.9 \
+              --handler lambda_handler.lambda_handler \
+              --role "$LAMBDA_ROLE" \
+              --timeout 300 \
+              --memory-size "$MEMORY_SIZE" \
+              --layers "$LAYER_ARN" \
+              --environment "Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }}}" \
+              --zip-file fileb://lambda.zip
           fi
-          aws lambda create-function \
-            --function-name "$FUNCTION_NAME" \
-            --runtime python3.9 \
-            --handler lambda_handler.lambda_handler \
-            --role "$LAMBDA_ROLE" \
-            --timeout 300 \
-            --memory-size "$MEMORY_SIZE" \
-            --layers "$LAYER_ARN" \
-            --environment "Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }}}" \
-            --zip-file fileb://lambda.zip
 
       - name: Update Lambda function
         if: steps.check_function.outputs.exists == 'true'
         env:
           LAYER_ARN: ${{ steps.layer_version.outputs.layer_arn }}
           FUNCTION_NAME: ${{ github.event.inputs.function_name || 'meraki-network-automation' }}
+          ENABLE_VPC: ${{ github.event.inputs.enable_vpc || 'true' }}
+          SUBNET_ID: ${{ secrets.VPC_SUBNET_ID }}
+          SECURITY_GROUP_ID: ${{ secrets.LAMBDA_SECURITY_GROUP_ID }}
         run: |
           # Update function code
           aws lambda update-function-code \
@@ -169,13 +205,23 @@ jobs:
           echo "Waiting for function code update to complete..."
           aws lambda wait function-updated --function-name "$FUNCTION_NAME"
           
-          # Update function configuration
+          # Update function configuration with VPC
           echo "Updating function configuration..."
-          aws lambda update-function-configuration \
-            --function-name "$FUNCTION_NAME" \
-            --layers "$LAYER_ARN" \
-            --environment "Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }}}"
+          if [ "$ENABLE_VPC" = "true" ]; then
+            aws lambda update-function-configuration \
+              --function-name "$FUNCTION_NAME" \
+              --layers "$LAYER_ARN" \
+              --vpc-config "SubnetIds=[$SUBNET_ID],SecurityGroupIds=[$SECURITY_GROUP_ID]" \
+              --environment "Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }},STATIC_IP=${{ secrets.STATIC_IP_ADDRESS }}}"
+          else
+            aws lambda update-function-configuration \
+              --function-name "$FUNCTION_NAME" \
+              --layers "$LAYER_ARN" \
+              --vpc-config "{}" \
+              --environment "Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }}}"
+          fi
           
           # Final wait for configuration update to complete
           echo "Waiting for configuration update to complete..."
           aws lambda wait function-updated --function-name "$FUNCTION_NAME"
+
