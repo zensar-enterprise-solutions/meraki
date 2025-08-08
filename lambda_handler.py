@@ -20,28 +20,35 @@ logger.setLevel(logging.INFO)
 
 def lambda_handler(event, context):
     try:
-        # Parse input event
+        # Load configuration from local file
+        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'workinglocal', 'config.json')
+        
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        
+        # Override with environment variables if available
+        config["meraki_api_key"] = os.environ.get('MERAKI_API_KEY', config.get('meraki_api_key'))
+        config["organization_id"] = os.environ.get('ORGANIZATION_ID', config.get('organization_id'))
+        
+        # Parse input event for any runtime overrides
         body = json.loads(event.get('body', '{}'))
         
+        # Allow runtime overrides from request body
+        if body.get('network_name'):
+            config['network_name'] = str(body.get('network_name'))
+        if body.get('source_device'):
+            config['source_device'] = body.get('source_device')
+        if body.get('target_network'):
+            config['target_network'] = body.get('target_network')
+        if body.get('device_serials'):
+            config['device_serials'] = body.get('device_serials')
+        
         # Validate required fields
-        network_name = body.get('network_name')
-        if not network_name or not isinstance(network_name, str):
+        if not config.get('network_name') or not isinstance(config.get('network_name'), str):
             return {
                 'statusCode': 400,
                 'body': json.dumps({'error': 'network_name is required and must be a string'})
             }
-        
-        config = {
-            "meraki_api_key": os.environ['MERAKI_API_KEY'],
-            "organization_id": os.environ['ORGANIZATION_ID'],
-            "network_name": str(network_name),  # Ensure it's a string
-            "source_device": body.get('source_device'),
-            "target_network": body.get('target_network'),
-            "timezone": "Europe/London",
-            "tags": ["managed", "automation"],
-            "device_serials": body.get('device_serials', []),
-            "wan_config": {"vlan": None}
-        }
 
         # Step 1: Create network
         manager = MerakiNetworkManager(config)
@@ -75,6 +82,18 @@ def lambda_handler(event, context):
             })
         }
 
+    except FileNotFoundError:
+        logger.error("Configuration file not found at workinglocal/config.json")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Configuration file not found'})
+        }
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in configuration file: {str(e)}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': 'Invalid configuration file format'})
+        }
     except Exception as e:
         logger.error(f"Error: {str(e)}")
         return {
