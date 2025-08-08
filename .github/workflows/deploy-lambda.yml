@@ -208,11 +208,18 @@ jobs:
           # Update function configuration with VPC
           echo "Updating function configuration..."
           if [ "$ENABLE_VPC" = "true" ]; then
+            STATIC_IP_VALUE="${{ secrets.STATIC_IP_ADDRESS }}"
+            if [ -n "$STATIC_IP_VALUE" ]; then
+              ENV_VARS="Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }},STATIC_IP=$STATIC_IP_VALUE}"
+            else
+              ENV_VARS="Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }}}"
+            fi
+            
             aws lambda update-function-configuration \
               --function-name "$FUNCTION_NAME" \
               --layers "$LAYER_ARN" \
               --vpc-config "SubnetIds=[$SUBNET_ID],SecurityGroupIds=[$SECURITY_GROUP_ID]" \
-              --environment "Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }},STATIC_IP=${{ secrets.STATIC_IP_ADDRESS }}}"
+              --environment "$ENV_VARS"
           else
             aws lambda update-function-configuration \
               --function-name "$FUNCTION_NAME" \
