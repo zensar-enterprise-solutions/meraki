@@ -5,19 +5,19 @@ This repository is used for Meraki automation with AWS Lambda integration.
 ## AWS Infrastructure
 
 ### VPC Setup Complete
-- **VPC ID**: vpc-094012fa4493dc5e0
-- **Private Subnet ID**: subnet-077e022aaafe3d4e6  
-- **Security Group ID**: sg-0c9030f90f5acc596
-- **Static IP Address**: 13.49.144.160
+- **VPC ID**: `<VPC_ID_FROM_AWS_CONSOLE>`
+- **Private Subnet ID**: `<PRIVATE_SUBNET_ID>`  
+- **Security Group ID**: `<SECURITY_GROUP_ID>`
+- **Static IP Address**: `<STATIC_IP_ADDRESS>`
 
 ### GitHub Secrets Configuration
 
 Add the following secrets to your GitHub repository:
 
 ```
-VPC_SUBNET_ID: subnet-077e022aaafe3d4e6
-LAMBDA_SECURITY_GROUP_ID: sg-0c9030f90f5acc596
-STATIC_IP_ADDRESS: 13.49.144.160
+VPC_SUBNET_ID: <your-subnet-id>
+LAMBDA_SECURITY_GROUP_ID: <your-security-group-id>
+STATIC_IP_ADDRESS: <your-static-ip>
 ```
 
-These values configure the Lambda function to use the VPC infrastructure for consistent outbound IP addressing.
+**Note**: Replace placeholders with actual values from your AWS console.
