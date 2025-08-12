@@ -33,10 +33,6 @@ on:
         options:
           - 'true'
           - 'false'
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
 
 permissions:
   id-token: write   # This is required for requesting the JWT
@@ -280,6 +276,10 @@ jobs:
               --vpc-config "{}" \
               --environment "Variables={MERAKI_API_KEY=${{ secrets.MERAKI_API_KEY }},ORGANIZATION_ID=${{ secrets.ORGANIZATION_ID }}}"
           fi
+          
+          # Final wait for configuration update to complete
+          echo "Waiting for configuration update to complete..."
+          aws lambda wait function-updated --function-name "$FUNCTION_NAME"
           
           # Final wait for configuration update to complete
           echo "Waiting for configuration update to complete..."
