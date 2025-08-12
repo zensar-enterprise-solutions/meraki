@@ -67,8 +67,8 @@ jobs:
           zip -r ../lambda-layer.zip python/
           cd ..
           
-          # Prepare function package
-          cp -r workinglocal function/
+          # Prepare function package - copy from production directory
+          cp -r production/network/meraki function/
           cp lambda_handler.py function/
           
           # Create function package
