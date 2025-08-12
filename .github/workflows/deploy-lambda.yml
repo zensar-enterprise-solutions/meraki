@@ -87,7 +87,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           role-session-name: GitHubActions-${{ github.run_id }}
-          aws-region: eu-north-1
+          aws-region: eu-west-1
           
       - name: Update Lambda Layer
         id: layer_version
