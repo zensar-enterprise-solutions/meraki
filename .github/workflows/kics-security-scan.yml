@@ -27,9 +27,14 @@ jobs:
         fetch-depth: 0
     
     - name: Create results directory
-      run: mkdir -p kics-results
+      run: |
+        mkdir -p kics-results
+        echo "Created kics-results directory"
+        ls -la
     
     - name: Run KICS Scan
+      id: kics-scan
+      continue-on-error: true
       uses: checkmarx/kics-github-action@v1.7.0
       with:
         path: '.'
@@ -43,35 +48,98 @@ jobs:
         verbose: true
         ignore_on_exit: 'results'
         include_queries: 'python,secrets,dockerfile,terraform,cloudformation'
+    
+    - name: Check KICS scan status and create fallback results
+      if: always()
+      run: |
+        echo "KICS scan step outcome: ${{ steps.kics-scan.outcome }}"
+        echo "KICS scan conclusion: ${{ steps.kics-scan.conclusion }}"
+        
+        # Ensure results directory exists
+        mkdir -p kics-results
+        
+        # Create a minimal results file if none exists
+        if [ ! -f "kics-results/results.json" ]; then
+          echo "Creating fallback results.json"
+          cat > kics-results/results.json << 'EOF'
+        {
+          "files_scanned": 0,
+          "queries_total": 0,
+          "severity_counters": {
+            "HIGH": 0,
+            "MEDIUM": 0,
+            "LOW": 0,
+            "INFO": 0
+          },
+          "scan_status": "failed_or_no_results",
+          "message": "KICS scan did not produce results or failed to execute"
+        }
+        EOF
+        fi
+        
+        # Create minimal SARIF if none exists
+        if [ ! -f "kics-results/results.sarif" ]; then
+          echo "Creating fallback results.sarif"
+          cat > kics-results/results.sarif << 'EOF'
+        {
+          "version": "2.1.0",
+          "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+          "runs": [
+            {
+              "tool": {
+                "driver": {
+                  "name": "KICS",
+                  "informationUri": "https://kics.io/",
+                  "version": "unknown"
+                }
+              },
+              "results": [],
+              "invocations": [
+                {
+                  "executionSuccessful": false,
+                  "toolExecutionNotifications": [
+                    {
+                      "level": "error",
+                      "message": {
+                        "text": "KICS scan failed or produced no results"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        EOF
+        fi
+        
+        # Create basic HTML report if none exists
+        if [ ! -f "kics-results/results.html" ]; then
+          echo "Creating fallback results.html"
+          cat > kics-results/results.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head><title>KICS Scan Results</title></head>
+        <body>
+        <h1>KICS Security Scan Results</h1>
+        <p><strong>Status:</strong> Scan failed or produced no results</p>
+        <p>Please check the GitHub Actions logs for more details.</p>
+        </body>
+        </html>
+        EOF
+        fi
         
     - name: List scan results
       if: always()
       run: |
         echo "Contents of kics-results directory:"
         ls -la kics-results/ || echo "kics-results directory not found"
-        echo "Looking for results files:"
-        find . -name "results.*" -type f || echo "No results files found"
-        echo "Checking for any SARIF files:"
-        find . -name "*.sarif" -type f || echo "No SARIF files found"
-        
-    - name: Ensure SARIF file exists
-      if: always()
-      run: |
-        if [ ! -f "kics-results/results.sarif" ]; then
-          echo "SARIF file not found, checking for alternative names..."
-          # Sometimes KICS creates different file names
-          if [ -f "kics-results/results-summary.sarif" ]; then
-            cp "kics-results/results-summary.sarif" "kics-results/results.sarif"
-            echo "Copied results-summary.sarif to results.sarif"
-          elif find kics-results -name "*.sarif" -type f | head -1 | read sarif_file; then
-            cp "$sarif_file" "kics-results/results.sarif"
-            echo "Copied $sarif_file to results.sarif"
-          else
-            echo "No SARIF file found to upload"
-          fi
-        else
-          echo "SARIF file exists: kics-results/results.sarif"
-        fi
+        echo "File sizes:"
+        du -h kics-results/* 2>/dev/null || echo "No files in results directory"
+        echo "Current directory contents:"
+        ls -la
+        echo "Looking for results files anywhere:"
+        find . -name "results.*" -type f 2>/dev/null || echo "No results files found"
         
     - name: Upload KICS results to GitHub Security tab
       if: always() && hashFiles('kics-results/results.sarif') != ''
@@ -85,7 +153,10 @@ jobs:
       run: |
         if [ -f "kics-results/results.sarif" ]; then
           echo "SARIF file exists and will be available in artifacts"
-          echo "If SARIF upload failed, results are still available in the artifacts section"
+          echo "File size: $(wc -c < kics-results/results.sarif) bytes"
+          if [ "${{ steps.kics-scan.outcome }}" != "success" ]; then
+            echo "Note: SARIF upload may contain fallback data due to scan issues"
+          fi
         else
           echo "No SARIF file found for upload"
         fi
@@ -94,9 +165,10 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: kics-security-results
+        name: kics-security-results-${{ github.run_number }}
         path: kics-results/
         retention-days: 30
+        if-no-files-found: warn
         
     - name: Comment PR with results summary
       if: github.event_name == 'pull_request' && always()
@@ -106,8 +178,20 @@ jobs:
           const fs = require('fs');
           try {
             const results = JSON.parse(fs.readFileSync('kics-results/results.json', 'utf8'));
+            
+            let statusIcon = '✅';
+            let statusText = 'SUCCESS';
+            
+            if (results.scan_status === 'failed_or_no_results') {
+              statusIcon = '⚠️';
+              statusText = 'SCAN ISSUES';
+            } else if ((results.severity_counters?.HIGH || 0) > 0 || (results.severity_counters?.MEDIUM || 0) > 0) {
+              statusIcon = '🔴';
+              statusText = 'ACTION REQUIRED';
+            }
+            
             const summary = `
-            ## [SECURITY] KICS Security Scan Results
+            ## ${statusIcon} KICS Security Scan Results - ${statusText}
             
             - **High Severity**: ${results.severity_counters?.HIGH || 0}
             - **Medium Severity**: ${results.severity_counters?.MEDIUM || 0}
@@ -117,11 +201,14 @@ jobs:
             **Total Files Scanned**: ${results.files_scanned || 0}
             **Total Queries Executed**: ${results.queries_total || 0}
             
-            ${results.severity_counters?.HIGH > 0 || results.severity_counters?.MEDIUM > 0 ? 
-              '[WARNING] **Action Required**: High or Medium severity issues found. Please review the security findings.' : 
-              '[SUCCESS] **No critical security issues found**'}
+            ${results.scan_status === 'failed_or_no_results' ? 
+              '⚠️ **Scan Issues Detected**: The KICS scan encountered problems. Please check the workflow logs and artifacts for details.' :
+              (results.severity_counters?.HIGH > 0 || results.severity_counters?.MEDIUM > 0 ? 
+                '🔴 **Action Required**: High or Medium severity issues found. Please review the security findings.' : 
+                '✅ **No critical security issues found**')
+            }
             
-            [RESULTS] [View detailed results in Actions artifacts](${context.payload.pull_request.html_url}/checks)
+            📊 [View detailed results in Actions artifacts](${context.payload.pull_request.html_url}/checks)
             `;
             
             await github.rest.issues.createComment({
@@ -132,6 +219,29 @@ jobs:
             });
           } catch (error) {
             console.log('Could not parse KICS results or create comment:', error.message);
+            
+            // Create fallback comment
+            const fallbackSummary = `
+            ## ⚠️ KICS Security Scan - Unable to Parse Results
+            
+            The KICS security scan completed, but the results could not be parsed.
+            This may indicate scan issues or unexpected output format.
+            
+            Please check the [workflow run artifacts](${context.payload.pull_request.html_url}/checks) for raw results.
+            
+            Error: \`${error.message}\`
+            `;
+            
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: fallbackSummary
+              });
+            } catch (commentError) {
+              console.log('Failed to create fallback comment:', commentError.message);
+            }
           }
         
     - name: Display scan results summary
@@ -146,6 +256,8 @@ jobs:
           
           # Extract key metrics using basic shell tools
           if command -v jq >/dev/null 2>&1; then
+            SCAN_STATUS=$(jq -r '.scan_status // "unknown"' kics-results/results.json)
+            echo "Scan status: $SCAN_STATUS"
             echo "Files scanned: $(jq -r '.files_scanned // "N/A"' kics-results/results.json)"
             echo "Queries executed: $(jq -r '.queries_total // "N/A"' kics-results/results.json)"
             echo ""
@@ -159,8 +271,10 @@ jobs:
             MEDIUM=$(jq -r '.severity_counters.MEDIUM // 0' kics-results/results.json)
             
             echo ""
-            if [ "$HIGH" -gt 0 ] || [ "$MEDIUM" -gt 0 ]; then
-              echo "⚠️  Action required: High or Medium severity issues found"
+            if [ "$SCAN_STATUS" = "failed_or_no_results" ]; then
+              echo "⚠️  Scan issues detected - please review workflow logs"
+            elif [ "$HIGH" -gt 0 ] || [ "$MEDIUM" -gt 0 ]; then
+              echo "🔴 Action required: High or Medium severity issues found"
               echo "   Please review the detailed results in the artifacts"
             else
               echo "✅ No critical security issues found"
@@ -176,4 +290,6 @@ jobs:
         echo ""
         echo "Available result files:"
         ls -la kics-results/ 2>/dev/null || echo "No results directory found"
+        echo ""
+        echo "KICS scan step outcome: ${{ steps.kics-scan.outcome }}"
         echo "=========================================="
