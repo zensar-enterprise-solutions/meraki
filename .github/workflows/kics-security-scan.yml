@@ -387,6 +387,22 @@ jobs:
             echo "  MEDIUM: $(jq -r '.severity_counters.MEDIUM // 0' kics-results/results.json)"
             echo "  LOW:    $(jq -r '.severity_counters.LOW // 0' kics-results/results.json)"
             echo "  INFO:   $(jq -r '.severity_counters.INFO // 0' kics-results/results.json)"
+            
+            HIGH=$(jq -r '.severity_counters.HIGH // 0' kics-results/results.json)
+            MEDIUM=$(jq -r '.severity_counters.MEDIUM // 0' kics-results/results.json)
+            
+            echo ""
+            if [ "$SCAN_STATUS" = "python_scan_no_files" ] || [ "$SCAN_STATUS" = "no_files_found" ]; then
+              echo "⚠️  No Python files found to scan"
+            elif [ "$HIGH" -gt 0 ] || [ "$MEDIUM" -gt 0 ]; then
+              echo "🔴 Action required: High or Medium severity issues found"
+              echo "   Please review the detailed results in the artifacts"
+            else
+              echo "✅ No critical security issues found in KICS scan"
+            fi
+          else
+            echo "jq not available, basic file info only:"
+            echo "KICS Results file size: $(wc -c < kics-results/results.json) bytes"
           fi
         else
           echo "❌ No KICS JSON results file found"
@@ -405,7 +421,13 @@ jobs:
             if [ "$BANDIT_ISSUES" -gt 0 ]; then
               echo "Bandit issue severity breakdown:"
               jq -r '.results | group_by(.issue_severity) | map({severity: .[0].issue_severity, count: length}) | .[] | "  \(.severity): \(.count)"' bandit-results/bandit-report.json 2>/dev/null || echo "  Unable to parse severity breakdown"
+              echo "🔴 Bandit found security issues in Python code"
+            else
+              echo "✅ No security issues found by Bandit"
             fi
+          else
+            echo "jq not available, basic file info only:"
+            echo "Bandit Results file size: $(wc -c < bandit-results/bandit-report.json) bytes"
           fi
         else
           echo "❌ No Bandit JSON results file found"
@@ -418,38 +440,136 @@ jobs:
         echo "KICS scan step outcome: ${{ steps.kics-scan.outcome }}"
         echo "Bandit scan step outcome: ${{ steps.bandit-scan.outcome }}"
         echo "=========================================="
-            echo "Files scanned: $(jq -r '.files_scanned // "N/A"' kics-results/results.json)"
-            echo "Queries executed: $(jq -r '.queries_total // "N/A"' kics-results/results.json)"
-            echo ""
-            echo "Severity breakdown:"
-            echo "  HIGH:   $(jq -r '.severity_counters.HIGH // 0' kics-results/results.json)"
-            echo "  MEDIUM: $(jq -r '.severity_counters.MEDIUM // 0' kics-results/results.json)"
-            echo "  LOW:    $(jq -r '.severity_counters.LOW // 0' kics-results/results.json)"
-            echo "  INFO:   $(jq -r '.severity_counters.INFO // 0' kics-results/results.json)"
-            
-            HIGH=$(jq -r '.severity_counters.HIGH // 0' kics-results/results.json)
-            MEDIUM=$(jq -r '.severity_counters.MEDIUM // 0' kics-results/results.json)
-            
-            echo ""
-            if [ "$SCAN_STATUS" = "failed_or_no_results" ]; then
-              echo "⚠️  Scan issues detected - please review workflow logs"
-            elif [ "$HIGH" -gt 0 ] || [ "$MEDIUM" -gt 0 ]; then
-              echo "🔴 Action required: High or Medium severity issues found"
-              echo "   Please review the detailed results in the artifacts"
-            else
-              echo "✅ No critical security issues found"
-            fi
-          else
-            echo "jq not available, basic file info only:"
-            echo "Results file size: $(wc -c < kics-results/results.json) bytes"
-          fi
+
+    - name: List scan results
+      if: always()
+      run: |
+        echo "Contents of kics-results directory:"
+        ls -la kics-results/ || echo "kics-results directory not found"
+        echo "Contents of bandit-results directory:"
+        ls -la bandit-results/ || echo "bandit-results directory not found"
+        echo "File sizes:"
+        du -h kics-results/* bandit-results/* 2>/dev/null || echo "No files in results directories"
+
+    - name: Upload KICS results to GitHub Security tab
+      if: always() && hashFiles('kics-results/results.sarif') != ''
+      uses: github/codeql-action/upload-sarif@v3
+      continue-on-error: true
+      with:
+        sarif_file: kics-results/results.sarif
+
+    - name: Upload Bandit results to GitHub Security tab
+      if: always() && hashFiles('bandit-results/bandit-report.sarif') != ''
+      uses: github/codeql-action/upload-sarif@v3
+      continue-on-error: true
+      with:
+        sarif_file: bandit-results/bandit-report.sarif
+
+    - name: Show SARIF upload status
+      if: always()
+      run: |
+        echo "SARIF Upload Status:"
+        if [ -f "kics-results/results.sarif" ]; then
+          echo "✓ KICS SARIF file exists and uploaded"
+          echo "  File size: $(wc -c < kics-results/results.sarif) bytes"
         else
-          echo "❌ No JSON results file found"
+          echo "❌ No KICS SARIF file found for upload"
         fi
         
-        echo ""
-        echo "Available result files:"
-        ls -la kics-results/ 2>/dev/null || echo "No results directory found"
-        echo ""
-        echo "KICS scan step outcome: ${{ steps.kics-scan.outcome }}"
-        echo "=========================================="
+        if [ -f "bandit-results/bandit-report.sarif" ]; then
+          echo "✓ Bandit SARIF file exists and uploaded"
+          echo "  File size: $(wc -c < bandit-results/bandit-report.sarif) bytes"
+        else
+          echo "❌ No Bandit SARIF file found for upload"
+        fi
+
+    - name: Comment PR with results summary
+      if: github.event_name == 'pull_request' && always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          let summary = '## 🐍 Python Security Scan Results\n\n';
+          
+          try {
+            // KICS Results
+            let kicsResults = null;
+            if (fs.existsSync('kics-results/results.json')) {
+              kicsResults = JSON.parse(fs.readFileSync('kics-results/results.json', 'utf8'));
+              
+              summary += '### KICS Security Scan\n';
+              summary += `- **Files Scanned**: ${kicsResults.files_scanned || 0}\n`;
+              summary += `- **High**: ${kicsResults.severity_counters?.HIGH || 0}\n`;
+              summary += `- **Medium**: ${kicsResults.severity_counters?.MEDIUM || 0}\n`;
+              summary += `- **Low**: ${kicsResults.severity_counters?.LOW || 0}\n`;
+              summary += `- **Info**: ${kicsResults.severity_counters?.INFO || 0}\n\n`;
+            } else {
+              summary += '### KICS Security Scan\n❌ No results available\n\n';
+            }
+            
+            // Bandit Results
+            let banditResults = null;
+            if (fs.existsSync('bandit-results/bandit-report.json')) {
+              banditResults = JSON.parse(fs.readFileSync('bandit-results/bandit-report.json', 'utf8'));
+              
+              summary += '### Bandit Security Scan\n';
+              const issueCount = banditResults.results?.length || 0;
+              summary += `- **Issues Found**: ${issueCount}\n`;
+              
+              if (issueCount > 0) {
+                const severityCounts = banditResults.results.reduce((acc, result) => {
+                  acc[result.issue_severity] = (acc[result.issue_severity] || 0) + 1;
+                  return acc;
+                }, {});
+                
+                Object.entries(severityCounts).forEach(([severity, count]) => {
+                  summary += `- **${severity}**: ${count}\n`;
+                });
+              }
+              summary += '\n';
+            } else {
+              summary += '### Bandit Security Scan\n❌ No results available\n\n';
+            }
+            
+            // Overall Status
+            const kicsHigh = kicsResults?.severity_counters?.HIGH || 0;
+            const kicsMedium = kicsResults?.severity_counters?.MEDIUM || 0;
+            const banditIssues = banditResults?.results?.length || 0;
+            
+            if (kicsHigh > 0 || kicsMedium > 0 || banditIssues > 0) {
+              summary += '🔴 **Action Required**: Security issues detected!\n';
+            } else {
+              summary += '✅ **No critical security issues found**\n';
+            }
+            
+            summary += `\n📊 [View detailed results in Actions artifacts](${context.payload.pull_request.html_url}/checks)";
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+          } catch (error) {
+            console.log('Error creating PR comment:', error.message);
+            
+            const fallbackSummary = `
+            ## ⚠️ Python Security Scan - Error Processing Results
+            
+            The security scans completed, but there was an error processing the results.
+            Please check the [workflow artifacts](${context.payload.pull_request.html_url}/checks) for detailed results.
+            
+            Error: \`${error.message}\`
+            `;
+            
+            try {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: fallbackSummary
+              });
+            } catch (commentError) {
+              console.log('Failed to create fallback comment:', commentError.message);
+            }
+          }
