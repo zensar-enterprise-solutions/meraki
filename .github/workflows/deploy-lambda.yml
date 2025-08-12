@@ -59,8 +59,8 @@ jobs:
           mkdir -p package/python
           mkdir -p function
           
-          # Install dependencies for layer
-          pip install -r requirements.txt -t package/python/
+          # Install dependencies for layer from production directory
+          pip install -r production/network/meraki/requirements.txt -t package/python/
           
           # Create layer package
           cd package
@@ -68,7 +68,7 @@ jobs:
           cd ..
           
           # Prepare function package - copy from production directory
-          cp -r production/network/meraki function/
+          cp -r production/network/meraki/* function/
           cp lambda_handler.py function/
           
           # Create function package
