@@ -117,6 +117,22 @@ jobs:
         run: |
           ROLE_NAME="lambda-${FUNCTION_NAME}-execution-role"
           
+          # Create trust policy document
+          cat > trust-policy.json << EOF
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": "lambda.amazonaws.com"
+                },
+                "Action": "sts:AssumeRole"
+              }
+            ]
+          }
+          EOF
+          
           # Check if role already exists
           if aws iam get-role --role-name "$ROLE_NAME" &> /dev/null; then
             echo "Role $ROLE_NAME already exists"
@@ -125,7 +141,7 @@ jobs:
             echo "Creating IAM role: $ROLE_NAME"
             ROLE_ARN=$(aws iam create-role \
               --role-name "$ROLE_NAME" \
-              --assume-role-policy-document file://lambda-trust-policy.json \
+              --assume-role-policy-document file://trust-policy.json \
               --description "Execution role for Lambda function $FUNCTION_NAME" \
               --query 'Role.Arn' \
               --output text)
