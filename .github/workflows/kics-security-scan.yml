@@ -35,109 +35,180 @@ jobs:
     - name: Debug repository structure and scannable files
       run: |
         echo "=========================================="
-        echo "Repository Structure Analysis"
+        echo "Python Security Scan Analysis"
         echo "=========================================="
         echo "Current working directory: $(pwd)"
         echo ""
-        echo "Repository structure (top 3 levels):"
-        find . -maxdepth 3 -type f | grep -v ".git" | head -30
+        echo "Looking for Python files specifically:"
+        echo "Python files (.py) in repository:"
+        find . -name "*.py" -type f | grep -v -E "(\.git|__pycache__|\.pytest_cache|venv|env)" | head -20
         echo ""
-        echo "Checking workinglocal directory specifically:"
+        echo "Python files by directory:"
+        find . -name "*.py" -type f | grep -v -E "(\.git|__pycache__|\.pytest_cache|venv|env)" | sed 's|/[^/]*$||' | sort | uniq -c
+        echo ""
+        echo "Checking workinglocal directory for Python files:"
         if [ -d "workinglocal" ]; then
-          echo "workinglocal directory found:"
-          find workinglocal -type f | head -20
-          echo "File types in workinglocal:"
-          find workinglocal -name "*.py" -o -name "*.tf" -o -name "*.yml" -o -name "*.yaml" -o -name "*.json" -o -name "*.js" -o -name "*.ts" | head -15
-          echo "All files in workinglocal (with sizes):"
-          find workinglocal -type f -exec ls -lh {} \; | head -10
+          echo "Python files in workinglocal:"
+          find workinglocal -name "*.py" -type f | head -10
+          echo "Sample Python file contents (first 10 lines):"
+          find workinglocal -name "*.py" -type f | head -1 | xargs head -10 2>/dev/null || echo "No readable Python files"
         else
           echo "workinglocal directory not found"
         fi
         echo ""
-        echo "Looking for potentially scannable files everywhere:"
-        echo "Python files (.py):"
-        find . -name "*.py" -type f | grep -v ".git" | head -10
-        echo "Terraform files (.tf, .tfvars):"
-        find . -name "*.tf" -o -name "*.tfvars" -type f | head -10
-        echo "Docker files:"
-        find . -name "Dockerfile*" -o -name "*.dockerfile" -type f | head -10
-        echo "YAML files (.yml, .yaml):"
-        find . -name "*.yml" -o -name "*.yaml" -type f | grep -v ".git" | head -15
-        echo "JSON files (.json):"
-        find . -name "*.json" -type f | grep -v ".git" | head -15
-        echo "JavaScript/TypeScript files:"
-        find . -name "*.js" -o -name "*.ts" -type f | grep -v "node_modules" | head -10
-        echo ""
-        echo "File count by type (excluding .git):"
-        echo "Python: $(find . -name "*.py" -type f | grep -v ".git" | wc -l)"
-        echo "YAML: $(find . -name "*.yml" -o -name "*.yaml" -type f | grep -v ".git" | wc -l)"
-        echo "JSON: $(find . -name "*.json" -type f | grep -v ".git" | wc -l)"
-        echo "Terraform: $(find . -name "*.tf" -type f | wc -l)"
-        echo "Dockerfile: $(find . -name "Dockerfile*" -type f | wc -l)"
-        echo "JavaScript: $(find . -name "*.js" -type f | grep -v "node_modules" | wc -l)"
-        echo "TypeScript: $(find . -name "*.ts" -type f | grep -v "node_modules" | wc -l)"
-        echo "Files in workinglocal: $(find workinglocal -type f 2>/dev/null | wc -l)"
-        echo "Total scannable files: $(find . -name "*.py" -o -name "*.tf" -o -name "*.tfvars" -o -name "*.yml" -o -name "*.yaml" -o -name "*.json" -o -name "*.js" -o -name "*.ts" -o -name "Dockerfile*" | grep -v -E "(\.git|node_modules|kics-results)" | wc -l)"
+        echo "Python file statistics:"
+        echo "Total Python files: $(find . -name "*.py" -type f | grep -v -E "(\.git|__pycache__|\.pytest_cache|venv|env)" | wc -l)"
+        echo "Python files with potential secrets (basic check):"
+        find . -name "*.py" -type f | grep -v -E "(\.git|__pycache__|\.pytest_cache|venv|env)" | xargs grep -l -E "(password|secret|key|token)" 2>/dev/null | wc -l
+        echo "Python files with import statements:"
+        find . -name "*.py" -type f | grep -v -E "(\.git|__pycache__|\.pytest_cache|venv|env)" | xargs grep -l "^import\|^from.*import" 2>/dev/null | wc -l
         echo "=========================================="
-    
-    - name: Create sample files for testing (if no scannable files found)
+
+    - name: Install Python security scanning tools
       run: |
-        TOTAL_FILES=$(find . -name "*.py" -o -name "*.tf" -o -name "*.yml" -o -name "*.yaml" -o -name "*.json" | grep -v -E "(\.git|node_modules|kics-results)" | wc -l)
-        echo "Found $TOTAL_FILES potentially scannable files"
+        echo "Installing additional Python security tools..."
+        pip install bandit[toml] safety
+        echo "Bandit version: $(bandit --version)"
+        echo "Safety version: $(safety --version)"
+    
+    - name: Create sample Python files for testing (if no Python files found)
+      run: |
+        PYTHON_FILES=$(find . -name "*.py" -type f | grep -v -E "(\.git|__pycache__|\.pytest_cache|venv|env)" | wc -l)
+        echo "Found $PYTHON_FILES Python files"
         
-        if [ "$TOTAL_FILES" -eq 0 ]; then
-          echo "No scannable files found, creating test files to verify KICS functionality..."
-          mkdir -p test-scan
+        if [ "$PYTHON_FILES" -eq 0 ]; then
+          echo "No Python files found, creating test files with security vulnerabilities..."
+          mkdir -p test-python
           
-          # Create a test Python file with a security issue
-          cat > test-scan/test.py << 'EOF'
+          # Create a comprehensive Python test file with various security issues
+          cat > test-python/vulnerable_app.py << 'EOF'
+        import os
+        import subprocess
+        import sqlite3
+        import pickle
+        import yaml
+        from flask import Flask, request
+        
+        app = Flask(__name__)
+        
+        # Hardcoded secrets (should be detected)
+        SECRET_KEY = "hardcoded_secret_123"
+        API_KEY = "sk-1234567890abcdef"
+        DATABASE_PASSWORD = "admin123"
+        
+        # SQL Injection vulnerability
+        def get_user(user_id):
+            conn = sqlite3.connect('users.db')
+            query = "SELECT * FROM users WHERE id = " + user_id  # Vulnerable
+            return conn.execute(query).fetchone()
+        
+        # Command injection vulnerability
+        def execute_command(user_input):
+            subprocess.call("ls " + user_input, shell=True)  # Vulnerable
+        
+        # Unsafe deserialization
+        def load_data(data):
+            return pickle.loads(data)  # Vulnerable
+        
+        # YAML unsafe load
+        def parse_config(config_data):
+            return yaml.load(config_data)  # Should use yaml.safe_load
+        
+        # Flask route with potential XSS
+        @app.route('/user/<username>')
+        def show_user(username):
+            return f"<h1>Hello {username}</h1>"  # No escaping
+        
+        # Weak random generation
+        def generate_token():
+            import random
+            return str(random.random())  # Should use secrets module
+        
+        # File path traversal
+        @app.route('/file/<path>')
+        def get_file(path):
+            return open(path, 'r').read()  # Vulnerable to path traversal
+        
+        # Eval vulnerability
+        def calculate(expression):
+            return eval(expression)  # Never use eval with user input
+        
+        # Weak cryptography
+        def hash_password(password):
+            import hashlib
+            return hashlib.md5(password.encode()).hexdigest()  # MD5 is weak
+        
+        if __name__ == '__main__':
+            app.run(debug=True, host='0.0.0.0')  # Debug mode in production
+        EOF
+          
+          # Create another Python file with different vulnerabilities
+          cat > test-python/insecure_config.py << 'EOF'
+        import ssl
+        import requests
+        import tempfile
         import os
         
-        # This should trigger security warnings
-        password = "hardcoded_password_123"
-        api_key = "sk-1234567890abcdef"
+        # SSL/TLS issues
+        def make_request():
+            # Disable SSL verification
+            response = requests.get('https://api.example.com', verify=False)
+            return response.json()
         
-        def unsafe_exec():
-            user_input = input("Enter command: ")
-            exec(user_input)  # Command injection vulnerability
+        # Weak SSL context
+        def create_ssl_context():
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            return context
         
-        def sql_query():
-            query = "SELECT * FROM users WHERE id = " + user_input  # SQL injection
-            return query
+        # Temporary file vulnerabilities
+        def create_temp_file():
+            # Insecure temp file creation
+            fd, path = tempfile.mkstemp()
+            os.chmod(path, 0o777)  # Too permissive
+            return path
+        
+        # Environment variable secrets
+        AWS_SECRET = os.getenv('AWS_SECRET', 'default_secret_key')
+        DB_PASS = os.environ.get('DB_PASSWORD', 'changeme123')
         EOF
           
-          # Create a test YAML file (Kubernetes-like)
-          cat > test-scan/deployment.yaml << 'EOF'
-        apiVersion: apps/v1
-        kind: Deployment
-        metadata:
-          name: test-app
-        spec:
-          containers:
-          - name: app
-            image: nginx:latest
-            securityContext:
-              privileged: true  # Security issue
-              runAsUser: 0      # Running as root
-        EOF
-          
-          # Create a test Dockerfile
-          cat > test-scan/Dockerfile << 'EOF'
-        FROM ubuntu:latest
-        RUN apt-get update && apt-get install -y curl
-        USER root
-        COPY . .
-        EXPOSE 80
-        CMD ["nginx", "-g", "daemon off;"]
-        EOF
-          
-          echo "Created test files:"
-          find test-scan -type f -exec ls -la {} \;
+          echo "Created test Python files with security vulnerabilities:"
+          find test-python -name "*.py" -exec ls -la {} \;
         else
-          echo "Found existing scannable files, proceeding with normal scan"
+          echo "Found existing Python files, proceeding with security scan"
+        fi
+
+    - name: Run Bandit Python Security Scan
+      id: bandit-scan
+      continue-on-error: true
+      run: |
+        echo "Running Bandit security scan on Python files..."
+        mkdir -p bandit-results
+        
+        # Find all Python files to scan
+        PYTHON_FILES=$(find . -name "*.py" -type f | grep -v -E "(\.git|__pycache__|\.pytest_cache|venv|env|kics-results)" | tr '\n' ' ')
+        
+        if [ -n "$PYTHON_FILES" ]; then
+          echo "Scanning Python files: $PYTHON_FILES"
+          
+          # Run Bandit with JSON output
+          bandit -r . -f json -o bandit-results/bandit-report.json || echo "Bandit scan completed with findings"
+          
+          # Run Bandit with text output for readability
+          bandit -r . -f txt -o bandit-results/bandit-report.txt || echo "Bandit scan completed with findings"
+          
+          # Run Bandit with SARIF output if supported
+          bandit -r . -f sarif -o bandit-results/bandit-report.sarif 2>/dev/null || echo "SARIF output not supported"
+          
+          echo "Bandit scan completed. Results saved to bandit-results/"
+        else
+          echo "No Python files found for Bandit scanning"
+          echo '{"results": [], "metrics": {"_totals": {"nosec": 0, "skipped_tests": 0}}}' > bandit-results/bandit-report.json
         fi
     
-    - name: Run KICS Scan
+    - name: Run KICS Scan (Python-focused)
       id: kics-scan
       continue-on-error: true
       uses: checkmarx/kics-github-action@v1.7.0
@@ -147,10 +218,11 @@ jobs:
         output_formats: 'json,sarif,html'
         fail_on: 'never'
         enable_comments: true
-        exclude_paths: '.git,node_modules,kics-results,venv,__pycache__,.pytest_cache'
-        platform_type: 'Terraform,CloudFormation,Dockerfile,Ansible,Python,Kubernetes,OpenAPI'
+        exclude_paths: '.git,node_modules,kics-results,bandit-results,venv,__pycache__,.pytest_cache'
+        platform_type: 'Python'
         verbose: true
         ignore_on_exit: 'results'
+        include_queries: 'python,secrets'
         config_path: ''
     
     - name: Debug KICS execution and output
@@ -228,8 +300,8 @@ jobs:
             "LOW": 0,
             "INFO": 0
           },
-          "scan_status": "no_files_found",
-          "message": "KICS scan completed but found no files to scan. This may be due to file type filtering or repository structure."
+          "scan_status": "python_scan_no_files",
+          "message": "KICS Python security scan completed but found no Python files to scan."
         }
         EOF
         
@@ -255,7 +327,7 @@ jobs:
                     {
                       "level": "note",
                       "message": {
-                        "text": "KICS scan completed but found no files to scan"
+                        "text": "KICS Python security scan completed but found no Python files to scan"
                       }
                     }
                   ]
@@ -270,154 +342,82 @@ jobs:
           cat > kics-results/results.html << 'EOF'
         <!DOCTYPE html>
         <html>
-        <head><title>KICS Scan Results</title></head>
+        <head><title>KICS Python Security Scan Results</title></head>
         <body>
-        <h1>KICS Security Scan Results</h1>
-        <p><strong>Status:</strong> No files found to scan</p>
-        <p>The KICS scan completed successfully but did not find any files matching the configured scan criteria.</p>
-        <p>This may be due to:</p>
-        <ul>
-          <li>No supported file types in repository</li>
-          <li>Files excluded by path filters</li>
-          <li>Repository structure not matching expected patterns</li>
-        </ul>
-        <p>Please check the GitHub Actions logs for more details about the repository structure.</p>
+        <h1>KICS Python Security Scan Results</h1>
+        <p><strong>Status:</strong> No Python files found to scan</p>
+        <p>The KICS Python security scan completed successfully but did not find any Python files matching the scan criteria.</p>
         </body>
         </html>
         EOF
         else
           echo "Valid KICS results found, preserving original results"
         fi
-        
-    - name: List scan results
-      if: always()
-      run: |
-        echo "Contents of kics-results directory:"
-        ls -la kics-results/ || echo "kics-results directory not found"
-        echo "File sizes:"
-        du -h kics-results/* 2>/dev/null || echo "No files in results directory"
-        echo "Current directory contents:"
-        ls -la
-        echo "Looking for results files anywhere:"
-        find . -name "results.*" -type f 2>/dev/null || echo "No results files found"
-        
-    - name: Upload KICS results to GitHub Security tab
-      if: always() && hashFiles('kics-results/results.sarif') != ''
-      uses: github/codeql-action/upload-sarif@v3
-      continue-on-error: true
-      with:
-        sarif_file: kics-results/results.sarif
-        
-    - name: Show SARIF upload status
-      if: always()
-      run: |
-        if [ -f "kics-results/results.sarif" ]; then
-          echo "SARIF file exists and will be available in artifacts"
-          echo "File size: $(wc -c < kics-results/results.sarif) bytes"
-          if [ "${{ steps.kics-scan.outcome }}" != "success" ]; then
-            echo "Note: SARIF upload may contain fallback data due to scan issues"
-          fi
-        else
-          echo "No SARIF file found for upload"
-        fi
-        
-    - name: Archive KICS results
+
+    - name: Archive Security Scan Results
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: kics-security-results-${{ github.run_number }}
-        path: kics-results/
+        name: python-security-scan-results-${{ github.run_number }}
+        path: |
+          kics-results/
+          bandit-results/
         retention-days: 30
         if-no-files-found: warn
-        
-    - name: Comment PR with results summary
-      if: github.event_name == 'pull_request' && always()
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const fs = require('fs');
-          try {
-            const results = JSON.parse(fs.readFileSync('kics-results/results.json', 'utf8'));
-            
-            let statusIcon = '✅';
-            let statusText = 'SUCCESS';
-            
-            if (results.scan_status === 'failed_or_no_results') {
-              statusIcon = '⚠️';
-              statusText = 'SCAN ISSUES';
-            } else if ((results.severity_counters?.HIGH || 0) > 0 || (results.severity_counters?.MEDIUM || 0) > 0) {
-              statusIcon = '🔴';
-              statusText = 'ACTION REQUIRED';
-            }
-            
-            const summary = `
-            ## ${statusIcon} KICS Security Scan Results - ${statusText}
-            
-            - **High Severity**: ${results.severity_counters?.HIGH || 0}
-            - **Medium Severity**: ${results.severity_counters?.MEDIUM || 0}
-            - **Low Severity**: ${results.severity_counters?.LOW || 0}
-            - **Info**: ${results.severity_counters?.INFO || 0}
-            
-            **Total Files Scanned**: ${results.files_scanned || 0}
-            **Total Queries Executed**: ${results.queries_total || 0}
-            
-            ${results.scan_status === 'failed_or_no_results' ? 
-              '⚠️ **Scan Issues Detected**: The KICS scan encountered problems. Please check the workflow logs and artifacts for details.' :
-              (results.severity_counters?.HIGH > 0 || results.severity_counters?.MEDIUM > 0 ? 
-                '🔴 **Action Required**: High or Medium severity issues found. Please review the security findings.' : 
-                '✅ **No critical security issues found**')
-            }
-            
-            📊 [View detailed results in Actions artifacts](${context.payload.pull_request.html_url}/checks)
-            `;
-            
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: summary
-            });
-          } catch (error) {
-            console.log('Could not parse KICS results or create comment:', error.message);
-            
-            // Create fallback comment
-            const fallbackSummary = `
-            ## ⚠️ KICS Security Scan - Unable to Parse Results
-            
-            The KICS security scan completed, but the results could not be parsed.
-            This may indicate scan issues or unexpected output format.
-            
-            Please check the [workflow run artifacts](${context.payload.pull_request.html_url}/checks) for raw results.
-            
-            Error: \`${error.message}\`
-            `;
-            
-            try {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: fallbackSummary
-              });
-            } catch (commentError) {
-              console.log('Failed to create fallback comment:', commentError.message);
-            }
-          }
-        
-    - name: Display scan results summary
+
+    - name: Display Python Security Scan Summary
       if: always()
       run: |
         echo "=========================================="
-        echo "KICS Security Scan Results Summary"
+        echo "Python Security Scan Results Summary"
         echo "=========================================="
         
+        # KICS Results
         if [ -f "kics-results/results.json" ]; then
-          echo "✓ JSON results file found"
+          echo "✓ KICS JSON results file found"
           
-          # Extract key metrics using basic shell tools
           if command -v jq >/dev/null 2>&1; then
             SCAN_STATUS=$(jq -r '.scan_status // "unknown"' kics-results/results.json)
-            echo "Scan status: $SCAN_STATUS"
+            echo "KICS Scan status: $SCAN_STATUS"
+            echo "KICS Files scanned: $(jq -r '.files_scanned // "N/A"' kics-results/results.json)"
+            echo "KICS Queries executed: $(jq -r '.queries_total // "N/A"' kics-results/results.json)"
+            echo ""
+            echo "KICS Severity breakdown:"
+            echo "  HIGH:   $(jq -r '.severity_counters.HIGH // 0' kics-results/results.json)"
+            echo "  MEDIUM: $(jq -r '.severity_counters.MEDIUM // 0' kics-results/results.json)"
+            echo "  LOW:    $(jq -r '.severity_counters.LOW // 0' kics-results/results.json)"
+            echo "  INFO:   $(jq -r '.severity_counters.INFO // 0' kics-results/results.json)"
+          fi
+        else
+          echo "❌ No KICS JSON results file found"
+        fi
+        
+        echo ""
+        
+        # Bandit Results
+        if [ -f "bandit-results/bandit-report.json" ]; then
+          echo "✓ Bandit JSON results file found"
+          
+          if command -v jq >/dev/null 2>&1; then
+            BANDIT_ISSUES=$(jq '.results | length' bandit-results/bandit-report.json 2>/dev/null || echo "0")
+            echo "Bandit issues found: $BANDIT_ISSUES"
+            
+            if [ "$BANDIT_ISSUES" -gt 0 ]; then
+              echo "Bandit issue severity breakdown:"
+              jq -r '.results | group_by(.issue_severity) | map({severity: .[0].issue_severity, count: length}) | .[] | "  \(.severity): \(.count)"' bandit-results/bandit-report.json 2>/dev/null || echo "  Unable to parse severity breakdown"
+            fi
+          fi
+        else
+          echo "❌ No Bandit JSON results file found"
+        fi
+        
+        echo ""
+        echo "Available result files:"
+        ls -la kics-results/ bandit-results/ 2>/dev/null || echo "No results directories found"
+        echo ""
+        echo "KICS scan step outcome: ${{ steps.kics-scan.outcome }}"
+        echo "Bandit scan step outcome: ${{ steps.bandit-scan.outcome }}"
+        echo "=========================================="
             echo "Files scanned: $(jq -r '.files_scanned // "N/A"' kics-results/results.json)"
             echo "Queries executed: $(jq -r '.queries_total // "N/A"' kics-results/results.json)"
             echo ""
