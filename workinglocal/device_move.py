@@ -39,6 +39,9 @@ class DeviceMover:
         }
         self.base_url = "https://api.meraki.com/api/v1"
         
+        # Security: Set default timeout for all requests
+        self.request_timeout = 30
+        
         # Validate configuration
         if not self.source_serial:
             raise ValueError("source_device MAC address is required")
@@ -51,7 +54,8 @@ class DeviceMover:
             # Try getting device details directly
             response = self.session.get(
                 f"{self.base_url}/organizations/{self.org_id}/inventory/devices",
-                headers=self.headers
+                headers=self.headers,
+                timeout=self.request_timeout
             )
             
             if response.status_code == 200:
@@ -87,7 +91,8 @@ class DeviceMover:
         try:
             response = self.session.get(
                 f"{self.base_url}/organizations/{self.org_id}/networks",
-                headers=self.headers
+                headers=self.headers,
+                timeout=self.request_timeout
             )
             
             if response.status_code == 200:
@@ -126,7 +131,8 @@ class DeviceMover:
                 logger.info(f"Removing device from current network {device['networkId']}")
                 self.session.post(
                     f"{self.base_url}/networks/{device['networkId']}/devices/{device['serial']}/remove",
-                    headers=self.headers
+                    headers=self.headers,
+                    timeout=self.request_timeout
                 )
                 time.sleep(2)  # Wait for removal to process
             
@@ -134,7 +140,8 @@ class DeviceMover:
             response = self.session.post(
                 f"{self.base_url}/networks/{target_network_id}/devices/claim",
                 headers=self.headers,
-                json={"serials": [device['serial']]}
+                json={"serials": [device['serial']]},
+                timeout=self.request_timeout
             )     
             
             if response.status_code in [200, 201]:

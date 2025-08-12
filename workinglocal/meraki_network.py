@@ -52,6 +52,9 @@ class MerakiNetworkManager:
             'Content-Type': 'application/json'
         }
         
+        # Security: Set default timeout for all requests
+        self.request_timeout = 30
+        
         # Validate API access
         self.validate_api_access()
 
@@ -60,7 +63,8 @@ class MerakiNetworkManager:
         try:
             response = self.session.get(
                 f"{self.meraki_base_url}/organizations/{self.org_id}",
-                headers=self.headers
+                headers=self.headers,
+                timeout=self.request_timeout
             )
             if response.status_code == 200:
                 logger.info("Successfully authenticated with Meraki API")
@@ -89,10 +93,11 @@ class MerakiNetworkManager:
                 "timeZone": self.config.get('timezone', 'Europe/London')
             }
             
-            response = requests.post(
+            response = self.session.post(
                 f"{self.meraki_base_url}/organizations/{self.org_id}/networks",
                 headers=self.headers,
-                json=network_data
+                json=network_data,
+                timeout=self.request_timeout
             )
             
             if response.status_code == 201:
@@ -113,13 +118,14 @@ class MerakiNetworkManager:
         logger.info(f"Adding devices to network {self.network_id}...")
         
         try:
-            response = requests.post(
+            response = self.session.post(
                 f"{self.meraki_base_url}/organizations/{self.org_id}/claim",
                 headers=self.headers,
                 json={
                     "serials": serial_numbers,
                     "networkId": self.network_id
-                }
+                },
+                timeout=self.request_timeout
             )
             
             if response.status_code == 200:
@@ -145,15 +151,17 @@ class MerakiNetworkManager:
         while attempt < max_attempts:
             try:
                 # Check device statuses
-                status_response = requests.get(
+                status_response = self.session.get(
                     f"{self.meraki_base_url}/networks/{self.network_id}/devices/statuses",
-                    headers=self.headers
+                    headers=self.headers,
+                    timeout=self.request_timeout
                 )
                 
                 # Check basic device listing
-                devices_response = requests.get(
+                devices_response = self.session.get(
                     f"{self.meraki_base_url}/networks/{self.network_id}/devices",
-                    headers=self.headers
+                    headers=self.headers,
+                    timeout=self.request_timeout
                 )
                 
                 if status_response.status_code == 200 and devices_response.status_code == 200:
@@ -212,18 +220,20 @@ class MerakiNetworkManager:
                 }
             }
             
-            response = requests.put(
+            response = self.session.put(
                 f"{self.meraki_base_url}/networks/{self.network_id}/appliance/uplink/settings",
                 headers=self.headers,
-                json=wan_settings
+                json=wan_settings,
+                timeout=self.request_timeout
             )
             
             if response.status_code == 200:
                 logger.info("Successfully configured WAN settings with DHCP")
                 # Get the assigned public IP
-                status_response = requests.get(
+                status_response = self.session.get(
                     f"{self.meraki_base_url}/networks/{self.network_id}/devices/statuses",
-                    headers=self.headers
+                    headers=self.headers,
+                    timeout=self.request_timeout
                 )
                 
                 if status_response.status_code == 200:
@@ -248,17 +258,19 @@ class MerakiNetworkManager:
         for attempt in range(max_retries):
             try:
                 # Try inventory endpoint first
-                inventory_response = requests.get(
+                inventory_response = self.session.get(
                     f"{self.meraki_base_url}/organizations/{self.org_id}/inventory",
-                    headers=self.headers
+                    headers=self.headers,
+                    timeout=self.request_timeout
                 )
                 
                 if inventory_response.status_code == 200:
                     inventory = inventory_response.json()
                     # Get all organization networks
-                    networks_response = requests.get(
+                    networks_response = self.session.get(
                         f"{self.meraki_base_url}/organizations/{self.org_id}/networks",
-                        headers=self.headers
+                        headers=self.headers,
+                        timeout=self.request_timeout
                     )
                     
                     if networks_response.status_code == 200:

@@ -207,75 +207,75 @@ jobs:
           echo "No Python files found for Bandit scanning"
           echo '{"results": [], "metrics": {"_totals": {"nosec": 0, "skipped_tests": 0}}}' > bandit-results/bandit-report.json
         fi
-    
-    - name: Run KICS Scan (Python-focused)
-      id: kics-scan
-      continue-on-error: true
-      uses: checkmarx/kics-github-action@v1.7.0
-      with:
-        path: '.'
-        output_path: 'kics-results'
-        output_formats: 'json,sarif,html'
-        fail_on: 'never'
-        enable_comments: true
-        exclude_paths: '.git,node_modules,kics-results,bandit-results,venv,__pycache__,.pytest_cache'
-        platform_type: 'Terraform,CloudFormation,Dockerfile,Ansible,Python,Kubernetes'
-        verbose: true
-        ignore_on_exit: 'results'
-        include_queries: 'python,secrets,dockerfile,terraform'
-        config_path: ''
-    
-    - name: Debug KICS execution and output
-      if: always()
-      run: |
-        echo "=========================================="
-        echo "KICS Execution Debug Information"
-        echo "=========================================="
-        echo "KICS scan step outcome: ${{ steps.kics-scan.outcome }}"
-        echo "KICS scan conclusion: ${{ steps.kics-scan.conclusion }}"
-        echo ""
-        echo "Checking for any KICS output files:"
-        find . -name "*kics*" -o -name "*results*" | grep -v ".git"
-        echo ""
-        echo "Checking kics-results directory:"
-        if [ -d "kics-results" ]; then
-          ls -la kics-results/
-          echo "Contents of any files found:"
-          for file in kics-results/*; do
-            if [ -f "$file" ]; then
-              echo "=== $file ==="
-              head -20 "$file" 2>/dev/null || echo "Unable to read file"
-              echo ""
-            fi
-          done
-        else
-          echo "kics-results directory does not exist"
-        fi
-        echo ""
-        echo "Checking current directory for any results:"
-        ls -la *.json *.sarif *.html 2>/dev/null || echo "No result files in current directory"
-        echo "=========================================="
 
-    - name: Check KICS scan status and create fallback results
+    - name: Display Detailed Bandit Findings
       if: always()
       run: |
-        echo "KICS scan step outcome: ${{ steps.kics-scan.outcome }}"
-        echo "KICS scan conclusion: ${{ steps.kics-scan.conclusion }}"
+        echo "=========================================="
+        echo "🔍 Detailed Bandit Security Findings"
+        echo "=========================================="
         
-        # Ensure results directory exists
-        mkdir -p kics-results
-        
-        # Check if KICS produced any real results
-        REAL_RESULTS=false
-        if [ -f "kics-results/results.json" ]; then
-          # Check if it's a real KICS results file (has files_scanned > 0 or queries_total > 0)
-          if command -v jq >/dev/null 2>&1; then
-            FILES_SCANNED=$(jq -r '.files_scanned // 0' kics-results/results.json 2>/dev/null)
-            QUERIES_TOTAL=$(jq -r '.queries_total // 0' kics-results/results.json 2>/dev/null)
-            if [ "$FILES_SCANNED" != "0" ] || [ "$QUERIES_TOTAL" != "0" ]; then
-              REAL_RESULTS=true
-              echo "Found valid KICS results with $FILES_SCANNED files scanned and $QUERIES_TOTAL queries"
+        if [ -f "bandit-results/bandit-report.json" ] && command -v jq >/dev/null 2>&1; then
+          TOTAL_ISSUES=$(jq '.results | length' bandit-results/bandit-report.json 2>/dev/null || echo "0")
+          
+          if [ "$TOTAL_ISSUES" -gt 0 ]; then
+            echo "📋 Found $TOTAL_ISSUES security issues:"
+            echo ""
+            
+            # Display each issue with details
+            jq -r '.results[] | "🚨 Issue: \(.test_id) - \(.test_name)
+        📄 File: \(.filename) (Line \(.line_number))
+        🔴 Severity: \(.issue_severity) | Confidence: \(.issue_confidence)
+        📝 Description: \(.issue_text)
+        💡 More Info: \(.more_info // "N/A")
+        ───────────────────────────────────────────────────────────────
+        "' bandit-results/bandit-report.json 2>/dev/null || echo "Unable to parse detailed findings"
+            
+            echo ""
+            echo "📊 Summary by Test ID:"
+            jq -r '.results | group_by(.test_id) | map({test_id: .[0].test_id, test_name: .[0].test_name, count: length}) | .[] | "  • \(.test_id) (\(.test_name)): \(.count) occurrence(s)"' bandit-results/bandit-report.json 2>/dev/null || echo "Unable to generate summary"
+            
+            echo ""
+            echo "🔧 Common Security Issues Found:"
+            if jq -e '.results[] | select(.test_id == "B113")' bandit-results/bandit-report.json >/dev/null 2>&1; then
+              echo "  • B113: Requests without timeout - Add timeout parameter to requests calls"
             fi
+            if jq -e '.results[] | select(.test_id == "B105")' bandit-results/bandit-report.json >/dev/null 2>&1; then
+              echo "  • B105: Hardcoded password - Remove hardcoded credentials"
+            fi
+            if jq -e '.results[] | select(.test_id == "B106")' bandit-results/bandit-report.json >/dev/null 2>&1; then
+              echo "  • B106: Hardcoded password - Remove hardcoded credentials"
+            fi
+            if jq -e '.results[] | select(.test_id == "B602")' bandit-results/bandit-report.json >/dev/null 2>&1; then
+              echo "  • B602: Subprocess call with shell=True - Use subprocess.run with shell=False"
+            fi
+            if jq -e '.results[] | select(.test_id == "B301")' bandit-results/bandit-report.json >/dev/null 2>&1; then
+              echo "  • B301: Pickle usage - Consider using safer serialization methods"
+            fi
+            if jq -e '.results[] | select(.test_id == "B506")' bandit-results/bandit-report.json >/dev/null 2>&1; then
+              echo "  • B506: YAML unsafe load - Use yaml.safe_load() instead of yaml.load()"
+            fi
+            if jq -e '.results[] | select(.test_id == "B201")' bandit-results/bandit-report.json >/dev/null 2>&1; then
+              echo "  • B201: Flask debug mode - Disable debug mode in production"
+            fi
+            if jq -e '.results[] | select(.test_id == "B104")' bandit-results/bandit-report.json >/dev/null 2>&1; then
+              echo "  • B104: Hardcoded bind to all interfaces - Specify specific interface"
+            fi
+          else
+            echo "✅ No security issues found by Bandit"
+          fi
+        else
+          echo "❌ Unable to analyze Bandit results - JSON file not found or jq not available"
+        fi
+        
+        echo ""
+        echo "📄 Text report preview (first 20 lines):"
+        if [ -f "bandit-results/bandit-report.txt" ]; then
+          head -20 bandit-results/bandit-report.txt
+        else
+          echo "No text report available"
+        fi
+        echo "=========================================="
           else
             # Check file size as fallback
             FILE_SIZE=$(wc -c < kics-results/results.json)
