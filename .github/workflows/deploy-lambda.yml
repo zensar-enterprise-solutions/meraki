@@ -69,7 +69,17 @@ jobs:
           
           # Prepare function package - copy from production directory
           cp -r production/network/meraki/* function/
-          cp lambda_handler.py function/
+          
+          # Copy lambda handler from production directory or root (fallback)
+          if [ -f "production/network/meraki/lambda_handler.py" ]; then
+            echo "Using lambda_handler.py from production directory"
+          elif [ -f "lambda_handler.py" ]; then
+            cp lambda_handler.py function/
+            echo "Using lambda_handler.py from root directory"
+          else
+            echo "::error::lambda_handler.py not found in production/network/meraki/ or root directory"
+            exit 1
+          fi
           
           # Create function package
           cd function
