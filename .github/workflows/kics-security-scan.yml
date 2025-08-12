@@ -39,55 +39,116 @@ jobs:
         echo "=========================================="
         echo "Current working directory: $(pwd)"
         echo ""
-        echo "Repository structure (top 2 levels):"
-        find . -maxdepth 2 -type f | head -20
+        echo "Repository structure (top 3 levels):"
+        find . -maxdepth 3 -type f | grep -v ".git" | head -30
         echo ""
         echo "Checking workinglocal directory specifically:"
         if [ -d "workinglocal" ]; then
           echo "workinglocal directory found:"
           find workinglocal -type f | head -20
           echo "File types in workinglocal:"
-          find workinglocal -name "*.py" -o -name "*.tf" -o -name "*.yml" -o -name "*.yaml" -o -name "*.json" | head -10
+          find workinglocal -name "*.py" -o -name "*.tf" -o -name "*.yml" -o -name "*.yaml" -o -name "*.json" -o -name "*.js" -o -name "*.ts" | head -15
+          echo "All files in workinglocal (with sizes):"
+          find workinglocal -type f -exec ls -lh {} \; | head -10
         else
           echo "workinglocal directory not found"
         fi
         echo ""
-        echo "Looking for potentially scannable files:"
-        echo "Python files:"
-        find . -name "*.py" -type f | head -10
-        echo "Terraform files:"
-        find . -name "*.tf" -o -name "*.tfvars" | head -10
+        echo "Looking for potentially scannable files everywhere:"
+        echo "Python files (.py):"
+        find . -name "*.py" -type f | grep -v ".git" | head -10
+        echo "Terraform files (.tf, .tfvars):"
+        find . -name "*.tf" -o -name "*.tfvars" -type f | head -10
         echo "Docker files:"
-        find . -name "Dockerfile*" -o -name "*.dockerfile" | head -10
-        echo "CloudFormation files:"
-        find . -name "*.yaml" -o -name "*.yml" -o -name "*.json" | grep -E "(template|stack|cfn)" | head -10
-        echo "Ansible files:"
-        find . -name "*.yml" -o -name "*.yaml" | grep -E "(playbook|ansible)" | head -10
+        find . -name "Dockerfile*" -o -name "*.dockerfile" -type f | head -10
+        echo "YAML files (.yml, .yaml):"
+        find . -name "*.yml" -o -name "*.yaml" -type f | grep -v ".git" | head -15
+        echo "JSON files (.json):"
+        find . -name "*.json" -type f | grep -v ".git" | head -15
+        echo "JavaScript/TypeScript files:"
+        find . -name "*.js" -o -name "*.ts" -type f | grep -v "node_modules" | head -10
         echo ""
-        echo "All YAML/JSON files (potential CloudFormation/Kubernetes):"
-        find . -name "*.yaml" -o -name "*.yml" -o -name "*.json" | grep -v -E "(node_modules|\.git|kics-results)" | head -10
-        echo ""
-        echo "File count by type:"
-        echo "Python: $(find . -name "*.py" -type f | wc -l)"
-        echo "YAML: $(find . -name "*.yml" -o -name "*.yaml" -type f | wc -l)"
-        echo "JSON: $(find . -name "*.json" -type f | wc -l)"
+        echo "File count by type (excluding .git):"
+        echo "Python: $(find . -name "*.py" -type f | grep -v ".git" | wc -l)"
+        echo "YAML: $(find . -name "*.yml" -o -name "*.yaml" -type f | grep -v ".git" | wc -l)"
+        echo "JSON: $(find . -name "*.json" -type f | grep -v ".git" | wc -l)"
         echo "Terraform: $(find . -name "*.tf" -type f | wc -l)"
         echo "Dockerfile: $(find . -name "Dockerfile*" -type f | wc -l)"
+        echo "JavaScript: $(find . -name "*.js" -type f | grep -v "node_modules" | wc -l)"
+        echo "TypeScript: $(find . -name "*.ts" -type f | grep -v "node_modules" | wc -l)"
         echo "Files in workinglocal: $(find workinglocal -type f 2>/dev/null | wc -l)"
+        echo "Total scannable files: $(find . -name "*.py" -o -name "*.tf" -o -name "*.tfvars" -o -name "*.yml" -o -name "*.yaml" -o -name "*.json" -o -name "*.js" -o -name "*.ts" -o -name "Dockerfile*" | grep -v -E "(\.git|node_modules|kics-results)" | wc -l)"
         echo "=========================================="
+    
+    - name: Create sample files for testing (if no scannable files found)
+      run: |
+        TOTAL_FILES=$(find . -name "*.py" -o -name "*.tf" -o -name "*.yml" -o -name "*.yaml" -o -name "*.json" | grep -v -E "(\.git|node_modules|kics-results)" | wc -l)
+        echo "Found $TOTAL_FILES potentially scannable files"
+        
+        if [ "$TOTAL_FILES" -eq 0 ]; then
+          echo "No scannable files found, creating test files to verify KICS functionality..."
+          mkdir -p test-scan
+          
+          # Create a test Python file with a security issue
+          cat > test-scan/test.py << 'EOF'
+        import os
+        
+        # This should trigger security warnings
+        password = "hardcoded_password_123"
+        api_key = "sk-1234567890abcdef"
+        
+        def unsafe_exec():
+            user_input = input("Enter command: ")
+            exec(user_input)  # Command injection vulnerability
+        
+        def sql_query():
+            query = "SELECT * FROM users WHERE id = " + user_input  # SQL injection
+            return query
+        EOF
+          
+          # Create a test YAML file (Kubernetes-like)
+          cat > test-scan/deployment.yaml << 'EOF'
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: test-app
+        spec:
+          containers:
+          - name: app
+            image: nginx:latest
+            securityContext:
+              privileged: true  # Security issue
+              runAsUser: 0      # Running as root
+        EOF
+          
+          # Create a test Dockerfile
+          cat > test-scan/Dockerfile << 'EOF'
+        FROM ubuntu:latest
+        RUN apt-get update && apt-get install -y curl
+        USER root
+        COPY . .
+        EXPOSE 80
+        CMD ["nginx", "-g", "daemon off;"]
+        EOF
+          
+          echo "Created test files:"
+          find test-scan -type f -exec ls -la {} \;
+        else
+          echo "Found existing scannable files, proceeding with normal scan"
+        fi
     
     - name: Run KICS Scan
       id: kics-scan
       continue-on-error: true
       uses: checkmarx/kics-github-action@v1.7.0
       with:
-        path: '.,workinglocal'
+        path: '.'
         output_path: 'kics-results'
         output_formats: 'json,sarif,html'
         fail_on: 'never'
         enable_comments: true
-        exclude_paths: '.git,node_modules,*.md,*.txt,tools,kics-results,venv,__pycache__,.pytest_cache,.github/workflows'
-        platform_type: 'Terraform,CloudFormation,Dockerfile,Ansible,Python,Kubernetes'
+        exclude_paths: '.git,node_modules,kics-results,venv,__pycache__,.pytest_cache'
+        platform_type: 'Terraform,CloudFormation,Dockerfile,Ansible,Python,Kubernetes,OpenAPI'
         verbose: true
         ignore_on_exit: 'results'
         config_path: ''
