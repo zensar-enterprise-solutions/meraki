@@ -104,53 +104,13 @@ jobs:
             echo "::set-output name=exists::true"
           fi
           
-      - name: Create Lambda Execution Role
-        id: create_role
-        env:
-          FUNCTION_NAME: ${{ github.event.inputs.function_name || 'meraki-network-automation' }}
-        run: |
-          ROLE_NAME="lambda-${FUNCTION_NAME}-execution-role"
-          
-          # Check if role already exists
-          if aws iam get-role --role-name "$ROLE_NAME" &> /dev/null; then
-            echo "Role $ROLE_NAME already exists"
-            ROLE_ARN=$(aws iam get-role --role-name "$ROLE_NAME" --query 'Role.Arn' --output text)
-          else
-            echo "Creating IAM role: $ROLE_NAME"
-            ROLE_ARN=$(aws iam create-role \
-              --role-name "$ROLE_NAME" \
-              --assume-role-policy-document file://lambda-trust-policy.json \
-              --description "Execution role for Lambda function $FUNCTION_NAME" \
-              --query 'Role.Arn' \
-              --output text)
-            
-            # Attach basic Lambda execution policy
-            aws iam attach-role-policy \
-              --role-name "$ROLE_NAME" \
-              --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-            
-            # Attach VPC execution policy if VPC is enabled
-            if [ "${{ github.event.inputs.enable_vpc || 'true' }}" = "true" ]; then
-              aws iam attach-role-policy \
-                --role-name "$ROLE_NAME" \
-                --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-            fi
-            
-            echo "Waiting for role to be available..."
-            sleep 10
-          fi
-          
-          echo "role_arn=$ROLE_ARN" >> $GITHUB_OUTPUT
-          echo "Created/Found role ARN: $ROLE_ARN"
-
       - name: Validate Lambda role ARN
         id: validate_role
         run: |
-          # Use the created role ARN instead of secret
-          ROLE_ARN="${{ steps.create_role.outputs.role_arn }}"
-          
+          ROLE_ARN="${{ secrets.LAMBDA_ROLE_ARN }}"
           if [ -z "$ROLE_ARN" ]; then
-            echo "::error::Failed to create or retrieve Lambda execution role"
+            echo "::error::LAMBDA_ROLE_ARN secret is not set. Please add it in GitHub repository settings."
+            echo "::error::Example format: arn:aws:iam::123456789012:role/lambda-meraki-role"
             exit 1
           fi
           
@@ -161,6 +121,7 @@ jobs:
           if [ -z "$ACCOUNT_ID" ] || [ -z "$ROLE_NAME" ]; then
             echo "::error::Invalid IAM role ARN format"
             echo "::error::Expected format: arn:aws:iam::<12-digit-account-id>:role/<role-name>"
+            echo "::error::Example: arn:aws:iam::123456789012:role/lambda-meraki-role"
             exit 1
           fi
           
