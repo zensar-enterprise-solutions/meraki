@@ -173,15 +173,19 @@ jobs:
           echo "role_arn=$ROLE_ARN" >> $GITHUB_OUTPUT
           echo "Successfully validated role ARN format"
           
-      - name: Create CloudWatch log group
+      - name: Create CloudWatch log group (optional)
         env:
           FUNCTION_NAME: ${{ github.event.inputs.function_name || 'meraki-network-automation' }}
         run: |
           LOG_GROUP="/aws/lambda/$FUNCTION_NAME"
           if ! aws logs describe-log-groups --log-group-name-prefix "$LOG_GROUP" | grep -q "$LOG_GROUP"; then
-            echo "Creating log group: $LOG_GROUP"
-            aws logs create-log-group --log-group-name "$LOG_GROUP"
-            aws logs put-retention-policy --log-group-name "$LOG_GROUP" --retention-in-days 30
+            echo "Attempting to create log group: $LOG_GROUP"
+            if aws logs create-log-group --log-group-name "$LOG_GROUP" 2>/dev/null; then
+              echo "Successfully created log group"
+              aws logs put-retention-policy --log-group-name "$LOG_GROUP" --retention-in-days 30 2>/dev/null || echo "Could not set retention policy"
+            else
+              echo "Warning: Could not create log group. Lambda will create it automatically on first execution."
+            fi
           else
             echo "Log group already exists: $LOG_GROUP"
           fi
