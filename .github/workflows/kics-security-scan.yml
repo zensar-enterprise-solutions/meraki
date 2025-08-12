@@ -42,6 +42,16 @@ jobs:
         echo "Repository structure (top 2 levels):"
         find . -maxdepth 2 -type f | head -20
         echo ""
+        echo "Checking workinglocal directory specifically:"
+        if [ -d "workinglocal" ]; then
+          echo "workinglocal directory found:"
+          find workinglocal -type f | head -20
+          echo "File types in workinglocal:"
+          find workinglocal -name "*.py" -o -name "*.tf" -o -name "*.yml" -o -name "*.yaml" -o -name "*.json" | head -10
+        else
+          echo "workinglocal directory not found"
+        fi
+        echo ""
         echo "Looking for potentially scannable files:"
         echo "Python files:"
         find . -name "*.py" -type f | head -10
@@ -63,6 +73,7 @@ jobs:
         echo "JSON: $(find . -name "*.json" -type f | wc -l)"
         echo "Terraform: $(find . -name "*.tf" -type f | wc -l)"
         echo "Dockerfile: $(find . -name "Dockerfile*" -type f | wc -l)"
+        echo "Files in workinglocal: $(find workinglocal -type f 2>/dev/null | wc -l)"
         echo "=========================================="
     
     - name: Run KICS Scan
@@ -70,7 +81,7 @@ jobs:
       continue-on-error: true
       uses: checkmarx/kics-github-action@v1.7.0
       with:
-        path: '.'
+        path: '.,workinglocal'
         output_path: 'kics-results'
         output_formats: 'json,sarif,html'
         fail_on: 'never'
