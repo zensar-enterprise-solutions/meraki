@@ -4,7 +4,7 @@
 VPC_CIDR="10.0.0.0/16"
 PUBLIC_SUBNET_CIDR="10.0.1.0/24"
 PRIVATE_SUBNET_CIDR="10.0.2.0/24"
-REGION="eu-north-1"
+REGION="eu-west-1"
 
 # Configure AWS CLI to bypass SSL verification (for corporate networks)
 export AWS_CLI_SSL_NO_VERIFY=1
