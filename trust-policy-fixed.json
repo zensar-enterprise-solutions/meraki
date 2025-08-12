@@ -1,0 +1,24 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::943321204550:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": [
+            "repo:zensar-enterprise-solutions:/meraki:*",
+            "repo:zensar-enterprise-solutions/meraki:ref:refs/heads/main",
+            "repo:zensar-enterprise-solutions/meraki:pull_request"
+          ]
+        }
+      }
+    }
+  ]
+}
