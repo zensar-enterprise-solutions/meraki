@@ -219,10 +219,10 @@ jobs:
         fail_on: 'never'
         enable_comments: true
         exclude_paths: '.git,node_modules,kics-results,bandit-results,venv,__pycache__,.pytest_cache'
-        platform_type: 'Python'
+        platform_type: 'Terraform,CloudFormation,Dockerfile,Ansible,Python,Kubernetes'
         verbose: true
         ignore_on_exit: 'results'
-        include_queries: 'python,secrets'
+        include_queries: 'python,secrets,dockerfile,terraform'
         config_path: ''
     
     - name: Debug KICS execution and output
@@ -369,8 +369,16 @@ jobs:
       if: always()
       run: |
         echo "=========================================="
-        echo "Python Security Scan Results Summary"
+        echo "🐍 Python Security Scan Results Summary"
         echo "=========================================="
+        
+        # Count total Python files found
+        TOTAL_PYTHON_FILES=$(find . -name "*.py" -type f | grep -v -E "(\.git|__pycache__|\.pytest_cache|venv|env)" | wc -l)
+        echo "📁 Total Python files in repository: $TOTAL_PYTHON_FILES"
+        
+        echo ""
+        echo "🔍 KICS Security Scan Results:"
+        echo "─────────────────────────────────────────"
         
         # KICS Results
         if [ -f "kics-results/results.json" ]; then
@@ -378,37 +386,43 @@ jobs:
           
           if command -v jq >/dev/null 2>&1; then
             SCAN_STATUS=$(jq -r '.scan_status // "unknown"' kics-results/results.json)
-            echo "KICS Scan status: $SCAN_STATUS"
-            echo "KICS Files scanned: $(jq -r '.files_scanned // "N/A"' kics-results/results.json)"
-            echo "KICS Queries executed: $(jq -r '.queries_total // "N/A"' kics-results/results.json)"
-            echo ""
-            echo "KICS Severity breakdown:"
-            echo "  HIGH:   $(jq -r '.severity_counters.HIGH // 0' kics-results/results.json)"
-            echo "  MEDIUM: $(jq -r '.severity_counters.MEDIUM // 0' kics-results/results.json)"
-            echo "  LOW:    $(jq -r '.severity_counters.LOW // 0' kics-results/results.json)"
-            echo "  INFO:   $(jq -r '.severity_counters.INFO // 0' kics-results/results.json)"
+            KICS_FILES=$(jq -r '.files_scanned // 0' kics-results/results.json)
+            KICS_QUERIES=$(jq -r '.queries_total // 0' kics-results/results.json)
             
+            echo "📊 KICS Scan status: $SCAN_STATUS"
+            echo "📄 KICS Files scanned: $KICS_FILES"
+            echo "🔎 KICS Queries executed: $KICS_QUERIES"
+            echo ""
+            echo "🚨 KICS Severity breakdown:"
             HIGH=$(jq -r '.severity_counters.HIGH // 0' kics-results/results.json)
             MEDIUM=$(jq -r '.severity_counters.MEDIUM // 0' kics-results/results.json)
+            LOW=$(jq -r '.severity_counters.LOW // 0' kics-results/results.json)
+            INFO=$(jq -r '.severity_counters.INFO // 0' kics-results/results.json)
+            
+            echo "  🔴 HIGH:   $HIGH"
+            echo "  🟡 MEDIUM: $MEDIUM"
+            echo "  🔵 LOW:    $LOW"
+            echo "  ℹ️  INFO:   $INFO"
             
             echo ""
             if [ "$SCAN_STATUS" = "python_scan_no_files" ] || [ "$SCAN_STATUS" = "no_files_found" ]; then
-              echo "⚠️  No Python files found to scan"
+              echo "⚠️  KICS could not detect Python files (may be due to file structure or naming)"
+              echo "   This is common - Bandit is more specialized for Python security scanning"
             elif [ "$HIGH" -gt 0 ] || [ "$MEDIUM" -gt 0 ]; then
-              echo "🔴 Action required: High or Medium severity issues found"
-              echo "   Please review the detailed results in the artifacts"
+              echo "🔴 KICS: Critical security issues found!"
             else
-              echo "✅ No critical security issues found in KICS scan"
+              echo "✅ KICS: No critical security issues detected"
             fi
           else
-            echo "jq not available, basic file info only:"
-            echo "KICS Results file size: $(wc -c < kics-results/results.json) bytes"
+            echo "❌ jq not available for detailed analysis"
           fi
         else
-          echo "❌ No KICS JSON results file found"
+          echo "❌ No KICS results file found"
         fi
         
         echo ""
+        echo "🐍 Bandit Security Scan Results:"
+        echo "─────────────────────────────────────────"
         
         # Bandit Results
         if [ -f "bandit-results/bandit-report.json" ]; then
@@ -416,30 +430,67 @@ jobs:
           
           if command -v jq >/dev/null 2>&1; then
             BANDIT_ISSUES=$(jq '.results | length' bandit-results/bandit-report.json 2>/dev/null || echo "0")
-            echo "Bandit issues found: $BANDIT_ISSUES"
+            echo "🔍 Bandit issues found: $BANDIT_ISSUES"
             
             if [ "$BANDIT_ISSUES" -gt 0 ]; then
-              echo "Bandit issue severity breakdown:"
-              jq -r '.results | group_by(.issue_severity) | map({severity: .[0].issue_severity, count: length}) | .[] | "  \(.severity): \(.count)"' bandit-results/bandit-report.json 2>/dev/null || echo "  Unable to parse severity breakdown"
-              echo "🔴 Bandit found security issues in Python code"
+              echo ""
+              echo "🚨 Bandit issue severity breakdown:"
+              
+              # Get severity counts
+              HIGH_COUNT=$(jq '[.results[] | select(.issue_severity == "HIGH")] | length' bandit-results/bandit-report.json 2>/dev/null || echo "0")
+              MEDIUM_COUNT=$(jq '[.results[] | select(.issue_severity == "MEDIUM")] | length' bandit-results/bandit-report.json 2>/dev/null || echo "0")
+              LOW_COUNT=$(jq '[.results[] | select(.issue_severity == "LOW")] | length' bandit-results/bandit-report.json 2>/dev/null || echo "0")
+              
+              echo "  🔴 HIGH:   $HIGH_COUNT"
+              echo "  🟡 MEDIUM: $MEDIUM_COUNT"
+              echo "  🔵 LOW:    $LOW_COUNT"
+              
+              echo ""
+              echo "📋 Top security issues found:"
+              jq -r '.results[0:5][] | "  • \(.test_id): \(.issue_text) (\(.issue_severity))"' bandit-results/bandit-report.json 2>/dev/null || echo "  Unable to parse issue details"
+              
+              echo ""
+              if [ "$HIGH_COUNT" -gt 0 ] || [ "$MEDIUM_COUNT" -gt 0 ]; then
+                echo "🔴 CRITICAL: High or Medium severity security issues detected!"
+                echo "   📝 Action required: Review and fix these security vulnerabilities"
+              else
+                echo "⚠️  Low severity issues found - consider reviewing for best practices"
+              fi
             else
               echo "✅ No security issues found by Bandit"
             fi
           else
-            echo "jq not available, basic file info only:"
-            echo "Bandit Results file size: $(wc -c < bandit-results/bandit-report.json) bytes"
+            echo "❌ jq not available for detailed analysis"
           fi
         else
-          echo "❌ No Bandit JSON results file found"
+          echo "❌ No Bandit results file found"
         fi
         
         echo ""
-        echo "Available result files:"
+        echo "📂 Available result files:"
         ls -la kics-results/ bandit-results/ 2>/dev/null || echo "No results directories found"
+        
         echo ""
-        echo "KICS scan step outcome: ${{ steps.kics-scan.outcome }}"
-        echo "Bandit scan step outcome: ${{ steps.bandit-scan.outcome }}"
+        echo "🎯 Scan Execution Summary:"
+        echo "  KICS scan outcome: ${{ steps.kics-scan.outcome }}"
+        echo "  Bandit scan outcome: ${{ steps.bandit-scan.outcome }}"
+        
+        # Overall security status
+        echo ""
+        echo "🛡️  OVERALL SECURITY STATUS:"
+        if [ -f "bandit-results/bandit-report.json" ] && command -v jq >/dev/null 2>&1; then
+          TOTAL_CRITICAL=$(jq '[.results[] | select(.issue_severity == "HIGH" or .issue_severity == "MEDIUM")] | length' bandit-results/bandit-report.json 2>/dev/null || echo "0")
+          if [ "$TOTAL_CRITICAL" -gt 0 ]; then
+            echo "🔴 SECURITY ALERT: $TOTAL_CRITICAL critical security issues require immediate attention!"
+          else
+            echo "✅ No critical security vulnerabilities detected"
+          fi
+        else
+          echo "⚠️  Unable to determine overall security status"
+        fi
+        
         echo "=========================================="
+        echo ""
 
     - name: List scan results
       if: always()
@@ -492,29 +543,41 @@ jobs:
           let summary = '## 🐍 Python Security Scan Results\n\n';
           
           try {
+            // Count Python files
+            const { execSync } = require('child_process');
+            const pythonFileCount = execSync('find . -name "*.py" -type f | grep -v -E "(\.git|__pycache__|\.pytest_cache|venv|env)" | wc -l', { encoding: 'utf-8' }).trim();
+            summary += `📁 **Python files scanned**: ${pythonFileCount}\n\n`;
+            
             // KICS Results
             let kicsResults = null;
             if (fs.existsSync('kics-results/results.json')) {
               kicsResults = JSON.parse(fs.readFileSync('kics-results/results.json', 'utf8'));
               
-              summary += '### KICS Security Scan\n';
+              summary += '### 🔍 KICS Security Scan\n';
               summary += `- **Files Scanned**: ${kicsResults.files_scanned || 0}\n`;
-              summary += `- **High**: ${kicsResults.severity_counters?.HIGH || 0}\n`;
-              summary += `- **Medium**: ${kicsResults.severity_counters?.MEDIUM || 0}\n`;
-              summary += `- **Low**: ${kicsResults.severity_counters?.LOW || 0}\n`;
-              summary += `- **Info**: ${kicsResults.severity_counters?.INFO || 0}\n\n`;
+              summary += `- **Status**: ${kicsResults.scan_status || 'unknown'}\n`;
+              if (kicsResults.files_scanned > 0) {
+                summary += `- **🔴 High**: ${kicsResults.severity_counters?.HIGH || 0}\n`;
+                summary += `- **🟡 Medium**: ${kicsResults.severity_counters?.MEDIUM || 0}\n`;
+                summary += `- **🔵 Low**: ${kicsResults.severity_counters?.LOW || 0}\n`;
+                summary += `- **ℹ️ Info**: ${kicsResults.severity_counters?.INFO || 0}\n`;
+              } else {
+                summary += '- ⚠️ KICS could not detect Python files (common with certain file structures)\n';
+              }
+              summary += '\n';
             } else {
-              summary += '### KICS Security Scan\n❌ No results available\n\n';
+              summary += '### 🔍 KICS Security Scan\n❌ No results available\n\n';
             }
             
             // Bandit Results
             let banditResults = null;
+            let totalCritical = 0;
             if (fs.existsSync('bandit-results/bandit-report.json')) {
               banditResults = JSON.parse(fs.readFileSync('bandit-results/bandit-report.json', 'utf8'));
               
-              summary += '### Bandit Security Scan\n';
+              summary += '### 🐍 Bandit Python Security Scan\n';
               const issueCount = banditResults.results?.length || 0;
-              summary += `- **Issues Found**: ${issueCount}\n`;
+              summary += `- **Total Issues**: ${issueCount}\n`;
               
               if (issueCount > 0) {
                 const severityCounts = banditResults.results.reduce((acc, result) => {
@@ -522,27 +585,53 @@ jobs:
                   return acc;
                 }, {});
                 
-                Object.entries(severityCounts).forEach(([severity, count]) => {
-                  summary += `- **${severity}**: ${count}\n`;
-                });
+                const high = severityCounts.HIGH || 0;
+                const medium = severityCounts.MEDIUM || 0;
+                const low = severityCounts.LOW || 0;
+                
+                totalCritical = high + medium;
+                
+                summary += `- **🔴 High**: ${high}\n`;
+                summary += `- **🟡 Medium**: ${medium}\n`;
+                summary += `- **🔵 Low**: ${low}\n`;
+                
+                if (issueCount <= 5) {
+                  summary += '\n**Issues Found:**\n';
+                  banditResults.results.forEach(issue => {
+                    const severity = issue.issue_severity === 'HIGH' ? '🔴' : 
+                                   issue.issue_severity === 'MEDIUM' ? '🟡' : '🔵';
+                    summary += `- ${severity} **${issue.test_id}**: ${issue.issue_text}\n`;
+                    summary += `  - File: \`${issue.filename}\` (Line ${issue.line_number})\n`;
+                  });
+                }
+              } else {
+                summary += '- ✅ No security issues detected\n';
               }
               summary += '\n';
             } else {
-              summary += '### Bandit Security Scan\n❌ No results available\n\n';
+              summary += '### 🐍 Bandit Python Security Scan\n❌ No results available\n\n';
             }
             
             // Overall Status
             const kicsHigh = kicsResults?.severity_counters?.HIGH || 0;
             const kicsMedium = kicsResults?.severity_counters?.MEDIUM || 0;
-            const banditIssues = banditResults?.results?.length || 0;
+            const kicsCritical = kicsHigh + kicsMedium;
             
-            if (kicsHigh > 0 || kicsMedium > 0 || banditIssues > 0) {
-              summary += '🔴 **Action Required**: Security issues detected!\n';
+            summary += '## 🛡️ Security Status Summary\n';
+            
+            if (totalCritical > 0 || kicsCritical > 0) {
+              summary += `🔴 **SECURITY ALERT**: ${totalCritical + kicsCritical} critical issues require immediate attention!\n\n`;
+              summary += '### 📝 Recommended Actions:\n';
+              summary += '1. Review all HIGH and MEDIUM severity findings\n';
+              summary += '2. Fix hardcoded secrets and credentials\n';
+              summary += '3. Address SQL injection and command injection vulnerabilities\n';
+              summary += '4. Update weak cryptographic implementations\n';
+              summary += '5. Review input validation and sanitization\n\n';
             } else {
-              summary += '✅ **No critical security issues found**\n';
+              summary += '✅ **No critical security vulnerabilities detected**\n\n';
             }
             
-            summary += `\n📊 [View detailed results in Actions artifacts](${context.payload.pull_request.html_url}/checks)";
+            summary += `📊 [View detailed results in Actions artifacts](${context.payload.pull_request.html_url}/checks)";
             
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
