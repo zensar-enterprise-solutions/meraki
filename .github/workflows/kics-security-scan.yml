@@ -37,11 +37,12 @@ jobs:
         output_formats: 'json,sarif,html'
         fail_on: 'high,medium'
         enable_comments: true
-        exclude_paths: '.git,node_modules,*.md,*.txt,tools,kics-results'
-        platform_type: 'CloudFormation'
+        exclude_paths: '.git,node_modules,*.md,*.txt,tools,kics-results,venv,__pycache__,.pytest_cache'
+        platform_type: 'Terraform,CloudFormation,Dockerfile,Ansible,Python'
         cloud_provider: 'aws'
         verbose: true
         ignore_on_exit: 'results'
+        include_queries: 'python,secrets,dockerfile,terraform,cloudformation'
         
     - name: List scan results
       if: always()
