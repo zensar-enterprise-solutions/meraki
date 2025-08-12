@@ -261,6 +261,15 @@ jobs:
             if jq -e '.results[] | select(.test_id == "B104")' bandit-results/bandit-report.json >/dev/null 2>&1; then
               echo "  • B104: Hardcoded bind to all interfaces - Specify specific interface"
             fi
+            if jq -e '.results[] | select(.test_id == "B404")' bandit-results/bandit-report.json >/dev/null 2>&1; then
+              echo "  • B404: Subprocess module usage - Review subprocess calls for security implications"
+            fi
+            if jq -e '.results[] | select(.test_id == "B603")' bandit-results/bandit-report.json >/dev/null 2>&1; then
+              echo "  • B603: Subprocess without shell=True - This is actually good (secure)"
+            fi
+            if jq -e '.results[] | select(.test_id == "B607")' bandit-results/bandit-report.json >/dev/null 2>&1; then
+              echo "  • B607: Partial executable path - Use absolute paths for executables"
+            fi
           else
             echo "✅ No security issues found by Bandit"
           fi
@@ -276,6 +285,75 @@ jobs:
           echo "No text report available"
         fi
         echo "=========================================="
+    
+    - name: Run KICS Scan (Python-focused)
+      id: kics-scan
+      continue-on-error: true
+      uses: checkmarx/kics-github-action@v1.7.0
+      with:
+        path: '.'
+        output_path: 'kics-results'
+        output_formats: 'json,sarif,html'
+        fail_on: 'never'
+        enable_comments: true
+        exclude_paths: '.git,node_modules,kics-results,bandit-results,venv,__pycache__,.pytest_cache'
+        platform_type: 'Terraform,CloudFormation,Dockerfile,Ansible,Python,Kubernetes'
+        verbose: true
+        ignore_on_exit: 'results'
+        include_queries: 'python,secrets,dockerfile,terraform'
+        config_path: ''
+    
+    - name: Debug KICS execution and output
+      if: always()
+      run: |
+        echo "=========================================="
+        echo "KICS Execution Debug Information"
+        echo "=========================================="
+        echo "KICS scan step outcome: ${{ steps.kics-scan.outcome }}"
+        echo "KICS scan conclusion: ${{ steps.kics-scan.conclusion }}"
+        echo ""
+        echo "Checking for any KICS output files:"
+        find . -name "*kics*" -o -name "*results*" | grep -v ".git"
+        echo ""
+        echo "Checking kics-results directory:"
+        if [ -d "kics-results" ]; then
+          ls -la kics-results/
+          echo "Contents of any files found:"
+          for file in kics-results/*; do
+            if [ -f "$file" ]; then
+              echo "=== $file ==="
+              head -20 "$file" 2>/dev/null || echo "Unable to read file"
+              echo ""
+            fi
+          done
+        else
+          echo "kics-results directory does not exist"
+        fi
+        echo ""
+        echo "Checking current directory for any results:"
+        ls -la *.json *.sarif *.html 2>/dev/null || echo "No result files in current directory"
+        echo "=========================================="
+
+    - name: Check KICS scan status and create fallback results
+      if: always()
+      run: |
+        echo "KICS scan step outcome: ${{ steps.kics-scan.outcome }}"
+        echo "KICS scan conclusion: ${{ steps.kics-scan.conclusion }}"
+        
+        # Ensure results directory exists
+        mkdir -p kics-results
+        
+        # Check if KICS produced any real results
+        REAL_RESULTS=false
+        if [ -f "kics-results/results.json" ]; then
+          # Check if it's a real KICS results file (has files_scanned > 0 or queries_total > 0)
+          if command -v jq >/dev/null 2>&1; then
+            FILES_SCANNED=$(jq -r '.files_scanned // 0' kics-results/results.json 2>/dev/null)
+            QUERIES_TOTAL=$(jq -r '.queries_total // 0' kics-results/results.json 2>/dev/null)
+            if [ "$FILES_SCANNED" != "0" ] || [ "$QUERIES_TOTAL" != "0" ]; then
+              REAL_RESULTS=true
+              echo "Found valid KICS results with $FILES_SCANNED files scanned and $QUERIES_TOTAL queries"
+            fi
           else
             # Check file size as fallback
             FILE_SIZE=$(wc -c < kics-results/results.json)
