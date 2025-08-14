@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # Variables
-VPC_CIDR="172.16.0.0/16"
-PUBLIC_SUBNET_CIDR="172.16.1.0/24"
+VPC_CIDR="10.0.0.0/16"
+PUBLIC_SUBNET_CIDR="10.0.1.0/24"
+PRIVATE_SUBNET_CIDR="10.0.2.0/24"
 REGION="eu-west-1"
 
 # Configure AWS CLI to bypass SSL verification (for corporate networks)
@@ -65,11 +66,27 @@ if [ -z "$PUBLIC_SUBNET_ID" ] || [ "$PUBLIC_SUBNET_ID" == "None" ]; then
 fi
 echo "Created Public Subnet: $PUBLIC_SUBNET_ID"
 
-# Allocate Elastic IP for Lambda (optional - for static outbound IP)
+# Create Private Subnet
+PRIVATE_SUBNET_ID=$(aws ec2 create-subnet \
+  $AWS_EXTRA_ARGS \
+  --vpc-id $VPC_ID \
+  --cidr-block $PRIVATE_SUBNET_CIDR \
+  --availability-zone "${REGION}a" \
+  --tag-specifications "ResourceType=subnet,Tags=[{Key=Name,Value=meraki-private-subnet}]" \
+  --query 'Subnet.SubnetId' \
+  --output text)
+
+if [ -z "$PRIVATE_SUBNET_ID" ] || [ "$PRIVATE_SUBNET_ID" == "None" ]; then
+  echo "ERROR: Failed to create Private Subnet"
+  exit 1
+fi
+echo "Created Private Subnet: $PRIVATE_SUBNET_ID"
+
+# Allocate Elastic IP for NAT Gateway
 EIP_ALLOCATION_ID=$(aws ec2 allocate-address \
   $AWS_EXTRA_ARGS \
   --domain vpc \
-  --tag-specifications "ResourceType=elastic-ip,Tags=[{Key=Name,Value=meraki-lambda-eip}]" \
+  --tag-specifications "ResourceType=elastic-ip,Tags=[{Key=Name,Value=meraki-nat-eip}]" \
   --query 'AllocationId' \
   --output text)
 
@@ -91,6 +108,29 @@ if [ -z "$EIP_ADDRESS" ] || [ "$EIP_ADDRESS" == "None" ]; then
   exit 1
 fi
 echo "Static IP Address: $EIP_ADDRESS"
+
+# Create NAT Gateway
+NAT_GW_ID=$(aws ec2 create-nat-gateway \
+  $AWS_EXTRA_ARGS \
+  --subnet-id $PUBLIC_SUBNET_ID \
+  --allocation-id $EIP_ALLOCATION_ID \
+  --query 'NatGateway.NatGatewayId' \
+  --output text)
+
+if [ -z "$NAT_GW_ID" ] || [ "$NAT_GW_ID" == "None" ]; then
+  echo "ERROR: Failed to create NAT Gateway"
+  exit 1
+fi
+echo "Created NAT Gateway: $NAT_GW_ID"
+
+# Wait for NAT Gateway to be available
+echo "Waiting for NAT Gateway to be available..."
+aws ec2 wait nat-gateway-available $AWS_EXTRA_ARGS --nat-gateway-ids $NAT_GW_ID
+
+# Tag NAT Gateway after creation
+aws ec2 create-tags $AWS_EXTRA_ARGS \
+  --resources $NAT_GW_ID \
+  --tags Key=Name,Value=meraki-nat-gw
 
 # Create route table for public subnet
 PUBLIC_RT_ID=$(aws ec2 create-route-table \
@@ -114,6 +154,28 @@ aws ec2 associate-route-table \
   --subnet-id $PUBLIC_SUBNET_ID \
   --route-table-id $PUBLIC_RT_ID
 
+# Create route table for private subnet
+PRIVATE_RT_ID=$(aws ec2 create-route-table \
+  $AWS_EXTRA_ARGS \
+  --vpc-id $VPC_ID \
+  --tag-specifications "ResourceType=route-table,Tags=[{Key=Name,Value=meraki-private-rt}]" \
+  --query 'RouteTable.RouteTableId' \
+  --output text)
+echo "Created Private Route Table: $PRIVATE_RT_ID"
+
+# Add route to NAT Gateway
+aws ec2 create-route \
+  $AWS_EXTRA_ARGS \
+  --route-table-id $PRIVATE_RT_ID \
+  --destination-cidr-block 0.0.0.0/0 \
+  --nat-gateway-id $NAT_GW_ID
+
+# Associate private subnet with private route table
+aws ec2 associate-route-table \
+  $AWS_EXTRA_ARGS \
+  --subnet-id $PRIVATE_SUBNET_ID \
+  --route-table-id $PRIVATE_RT_ID
+
 # Create Security Group for Lambda
 LAMBDA_SG_ID=$(aws ec2 create-security-group \
   $AWS_EXTRA_ARGS \
@@ -136,11 +198,11 @@ aws ec2 authorize-security-group-egress \
 echo ""
 echo "=== VPC Setup Complete ==="
 echo "VPC ID: $VPC_ID"
-echo "Public Subnet ID: $PUBLIC_SUBNET_ID"
+echo "Private Subnet ID: $PRIVATE_SUBNET_ID"
 echo "Security Group ID: $LAMBDA_SG_ID"
 echo "Static IP Address: $EIP_ADDRESS"
 echo ""
 echo "Add these to your GitHub Secrets:"
-echo "VPC_SUBNET_ID: $PUBLIC_SUBNET_ID"
+echo "VPC_SUBNET_ID: $PRIVATE_SUBNET_ID"
 echo "LAMBDA_SECURITY_GROUP_ID: $LAMBDA_SG_ID"
 echo "STATIC_IP_ADDRESS: $EIP_ADDRESS"
