@@ -1,12 +1,11 @@
 {
-    "network_name": "AWS-EU-WEST-1-SCVPN-02",
-    "source_device": "cc:03:d9:02:3d:96",
-    "target_network": "AWS-EU-WEST-1-SCVPN-02",
+    "network_name": "vmx-net-prd-scvpn-euw1b-02",
+    "source_device": "cc:03:d9:02:60:0c",
+    "target_network": "vmx-net-prd-scvpn-euw1b-02",
     "timezone": "Europe/London",
     "tags": ["managed", "automation"],
     "device_serials": [
-        "Q2CZ-4W7W-QDS4",
-        "Q2CZ-AZW2-PHNY"
+        "Q2CZ-UW4B-PKQU"
     ],
     "wan_config": {
         "vlan": null  
